@@ -1,9 +1,9 @@
-use mcltl_lib::buchi;
-use mcltl_lib::ltl::automata;
-use mcltl_lib::ltl::expression::{put_in_nnf, LTLExpression};
-use mcltl_lib::verifier::{kripke, model_checker};
+use mcltl::buchi;
+use mcltl::ltl::automata;
+use mcltl::ltl::expression::{put_in_nnf, LTLExpression};
+use mcltl::verifier::{kripke, model_checker};
 
-use clap::Clap;
+use clap::Parser;
 
 use std::convert::TryFrom;
 use std::fs;
@@ -23,12 +23,12 @@ macro_rules! error {
     };
 }
 
-#[derive(Clap)]
-#[clap(version = "1.0tt")]
+#[derive(Parser)]
+#[command(version = "1.0tt")]
 struct Opts {
-    #[clap(short = "k", long = "program")]
+    #[clap(short = 'k', long = "program")]
     program_path: String,
-    #[clap(short = "p", long = "property")]
+    #[clap(short = 'p', long = "property")]
     property: String,
 }
 
