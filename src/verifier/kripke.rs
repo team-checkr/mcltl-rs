@@ -315,6 +315,16 @@ pub enum Expr {
 }
 
 mod parser {
+    #![allow(
+        clippy::enum_variant_names,
+        clippy::let_unit_value,
+        clippy::ptr_arg,
+        clippy::redundant_closure_call,
+        clippy::redundant_field_names,
+        clippy::type_complexity,
+        clippy::unused_unit
+    )]
+
     use super::Token::*;
     use super::*;
     use std::iter::FromIterator;

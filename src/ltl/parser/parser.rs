@@ -1,3 +1,12 @@
+#![allow(
+    clippy::type_complexity,
+    clippy::redundant_field_names,
+    clippy::ptr_arg,
+    clippy::redundant_closure_call,
+    clippy::enum_variant_names,
+    clippy::let_unit_value
+)]
+
 use plex::parser;
 
 use crate::ltl::expression::LTLExpression;

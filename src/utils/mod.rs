@@ -11,9 +11,9 @@ macro_rules! buchi{
         init = [$( $init:ident ),*]
         accepting = [$( $accepting_state:ident ),*]
     ) => {{
-        let mut __graph = Buchi::new();
+        let mut graph = Buchi::new();
         $(
-            #[allow(unused_mut)]
+            #[allow(unused_mut, non_snake_case)]
             let mut $src = BuchiNode::new(stringify!($src).to_string());
             $(
                 $src.adj.push(
@@ -25,13 +25,13 @@ macro_rules! buchi{
                 );
             )*
 
-            __graph.adj_list.push($src.clone());
+            graph.adj_list.push($src.clone());
         )*
 
-        $(__graph.init_states.push($init.clone());)*
-        $(__graph.accepting_states.push($accepting_state.clone());)*
+        $(graph.init_states.push($init.clone());)*
+        $(graph.accepting_states.push($accepting_state.clone());)*
 
-        __graph
+        graph
     }};
 }
 
@@ -46,8 +46,9 @@ macro_rules! gbuchi{
         init = [$( $init:ident ),*]
         $(accepting = [$( $accepting_states:expr ),*])*
     ) => {{
-        let mut __graph = GeneralBuchi::new();
+        let mut graph = GeneralBuchi::new();
         $(
+            #[allow(unused_mut, non_snake_case)]
             let mut $src = BuchiNode::new(stringify!($src).to_string());
             $(
                 $src.adj.push(
@@ -59,13 +60,13 @@ macro_rules! gbuchi{
                 );
             )*
 
-            __graph.adj_list.push($src.clone());
+            graph.adj_list.push($src.clone());
         )*
 
-        $(__graph.init_states.push($init.clone());)*
-        $($(__graph.accepting_states.push($accepting_states.clone());)*)*
+        $(graph.init_states.push($init.clone());)*
+        $($(graph.accepting_states.push($accepting_states.clone());)*)*
 
-        __graph
+        graph
     }};
 }
 
@@ -82,7 +83,7 @@ macro_rules! kripke{
         ===
         init = [$( $init:ident ),*]
     ) => {{
-        let mut __kripke = KripkeStructure::new(vec![]);
+        let mut kripke = KripkeStructure::new(vec![]);
 
         $(
             let mut $world = World {
@@ -93,15 +94,15 @@ macro_rules! kripke{
                 $world.assignement.insert($prop.0.into(), $prop.1);
             )*
 
-            __kripke.add_world($world.clone());
+            kripke.add_world($world.clone());
         )*
 
         $(
-            __kripke.add_relation($src.clone(), $dst.clone());
+            kripke.add_relation($src.clone(), $dst.clone());
         )*
 
-        __kripke.inits = vec![$($init.id.clone(),)*];
+        kripke.inits = vec![$($init.id.clone(),)*];
 
-        __kripke
+        kripke
     }};
 }
