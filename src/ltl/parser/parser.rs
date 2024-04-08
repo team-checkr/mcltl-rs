@@ -39,7 +39,7 @@ parser! {
         },
         Not expr[e] => LTLExpressionSpan {
             span: span!(),
-            expr: LTLExpression::Not(Box::new(e.expr)),
+            expr: !e.expr,
         },
         LParen expr[e] RParen => LTLExpressionSpan {
             span: span!(),
@@ -52,23 +52,23 @@ parser! {
     binexpr: LTLExpressionSpan{
         atom[e1] U expr[e2] => LTLExpressionSpan {
             span: span!(),
-            expr: LTLExpression::U(Box::new(e1.expr), Box::new(e2.expr)),
+            expr: e1.expr.U(e2.expr),
         },
         atom[e1] R expr[e2] => LTLExpressionSpan {
             span: span!(),
-            expr: LTLExpression::R(Box::new(e1.expr), Box::new(e2.expr)),
+            expr: e1.expr.R(e2.expr),
         },
         atom[e1] V expr[e2] => LTLExpressionSpan {
             span: span!(),
-            expr: LTLExpression::V(Box::new(e1.expr), Box::new(e2.expr)),
+            expr: e1.expr.V(e2.expr),
         },
         atom[e1] Or expr[e2] => LTLExpressionSpan {
             span: span!(),
-            expr: LTLExpression::Or(Box::new(e1.expr), Box::new(e2.expr)),
+            expr: e1.expr | e2.expr,
         },
         atom[e1] And expr[e2] => LTLExpressionSpan {
             span: span!(),
-            expr: LTLExpression::And(Box::new(e1.expr), Box::new(e2.expr)),
+            expr: e1.expr & e2.expr,
         },
     }
 

@@ -1,6 +1,6 @@
 use mcltl::buchi;
 use mcltl::ltl::automata;
-use mcltl::ltl::expression::{put_in_nnf, LTLExpression};
+use mcltl::ltl::expression::LTLExpression;
 use mcltl::verifier::{kripke, model_checker};
 
 use clap::Parser;
@@ -53,9 +53,7 @@ fn verify_property(contents: String, opts: Opts) {
         ok!("Parsing LTL property");
     }
 
-    let mut ltl_property = ltl_property.unwrap();
-    ltl_property.rewrite();
-    let nnf_ltl_property = put_in_nnf(ltl_property);
+    let nnf_ltl_property = ltl_property.unwrap().rewrite().nnf();
     ok!("Converting LTL property in NNF");
 
     let nodes = automata::create_graph(nnf_ltl_property.clone());

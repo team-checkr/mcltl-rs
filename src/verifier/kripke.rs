@@ -18,10 +18,8 @@ impl World {
         let mut buf = Vec::new();
         for (lit, cond) in self.assignement.iter() {
             match (lit, cond) {
-                (l, true) => buf.push(LTLExpression::Literal(l.to_string())),
-                (l, false) => buf.push(LTLExpression::Not(Box::new(LTLExpression::Literal(
-                    l.to_string(),
-                )))),
+                (l, true) => buf.push(LTLExpression::lit(l)),
+                (l, false) => buf.push(!LTLExpression::lit(l)),
             }
         }
 
@@ -80,9 +78,9 @@ impl From<KripkeStructure> for Buchi {
                     .iter()
                     .map(|(k, v)| {
                         if *v {
-                            LTLExpression::Literal(k.into())
+                            LTLExpression::lit(k)
                         } else {
-                            LTLExpression::Not(Box::new(LTLExpression::Literal(k.into())))
+                            !LTLExpression::lit(k)
                         }
                     })
                     .collect();
@@ -96,9 +94,9 @@ impl From<KripkeStructure> for Buchi {
                     .iter()
                     .map(|(k, v)| {
                         if *v {
-                            LTLExpression::Literal(k.into())
+                            LTLExpression::lit(k)
                         } else {
-                            LTLExpression::Not(Box::new(LTLExpression::Literal(k.into())))
+                            !LTLExpression::lit(k)
                         }
                     })
                     .collect();
@@ -120,9 +118,9 @@ impl From<KripkeStructure> for Buchi {
                 .iter()
                 .map(|(k, v)| {
                     if *v {
-                        LTLExpression::Literal(k.into())
+                        LTLExpression::lit(k)
                     } else {
-                        LTLExpression::Not(Box::new(LTLExpression::Literal(k.into())))
+                        !LTLExpression::lit(k)
                     }
                 })
                 .collect();

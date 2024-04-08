@@ -84,16 +84,16 @@ mod test_emptiness {
     fn it_should_found_non_empty() {
         let buchi = buchi! {
             q0
-                [LTLExpression::Literal("a".into())] => q1
+                [LTLExpression::lit("a")] => q1
             q1
-                [LTLExpression::Literal("b".into())] => q2
+                [LTLExpression::lit("b")] => q2
             q2
-                [LTLExpression::Literal("e".into())] => q3
-                [LTLExpression::Literal("c".into())] => q4 // cycle containing an accepting state
+                [LTLExpression::lit("e")] => q3
+                [LTLExpression::lit("c")] => q4 // cycle containing an accepting state
             q3
-                [LTLExpression::Literal("f".into())] => q1
+                [LTLExpression::lit("f")] => q1
             q4
-                [LTLExpression::Literal("d".into())] => q3
+                [LTLExpression::lit("d")] => q3
             ===
             init = [q0]
             accepting = [q1]
@@ -112,15 +112,15 @@ mod test_emptiness {
     fn it_should_found_empty_because_the_cycle_doesnt_contain_an_accepting_state() {
         let buchi = buchi! {
             q0
-                [LTLExpression::Literal("a".into())] => q1
+                [LTLExpression::lit("a")] => q1
             q1
-                [LTLExpression::Literal("b".into())] => q2
+                [LTLExpression::lit("b")] => q2
             q2
-                [LTLExpression::Literal("e".into())] => q3
-                [LTLExpression::Literal("c".into())] => q4
+                [LTLExpression::lit("e")] => q3
+                [LTLExpression::lit("c")] => q4
             q3
             q4
-                [LTLExpression::Literal("d".into())] => q3
+                [LTLExpression::lit("d")] => q3
             ===
             init = [q0]
             accepting = [q1]
@@ -135,7 +135,7 @@ mod test_emptiness {
     fn it_should_found_emptiness() {
         let buchi = buchi! {
             q0
-                [LTLExpression::Literal("a".into())] => q1
+                [LTLExpression::lit("a")] => q1
             q1
             ===
             init = [q0]

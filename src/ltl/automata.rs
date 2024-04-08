@@ -244,12 +244,7 @@ mod tests {
 
     #[test]
     fn it_should_create_graph_from_ltl() {
-        let mut expr = LTLExpression::U(
-            Box::new(LTLExpression::Literal("p".to_owned())),
-            Box::new(LTLExpression::Literal("q".to_owned())),
-        );
-
-        expr.rewrite();
+        let expr = LTLExpression::lit("p").U(LTLExpression::lit("q")).rewrite();
 
         let nodes = create_graph(expr);
         assert_eq!(3, nodes.len());

@@ -16,13 +16,8 @@ mod test_parser {
         let lexer = lexer::Lexer::new(input_without_parenthesis);
         let parse_result2 = parser::parse(lexer);
 
-        let expected = LTLExpression::U(
-            Box::new(LTLExpression::Literal("p".into())),
-            Box::new(LTLExpression::U(
-                Box::new(LTLExpression::Literal("q".into())),
-                Box::new(LTLExpression::Literal("p".into())),
-            )),
-        );
+        let expected =
+            LTLExpression::lit("p").U(LTLExpression::lit("q").U(LTLExpression::lit("p")));
 
         assert!(parse_result.is_ok());
         assert_eq!(expected, parse_result.unwrap().expr);
@@ -37,14 +32,14 @@ mod test_parser {
         let lexer = lexer::Lexer::new(input);
         let parse_result = parser::parse(lexer);
 
-        let expected = LTLExpression::G(Box::new(LTLExpression::Literal("p".into())));
+        let expected = LTLExpression::G(Box::new(LTLExpression::lit("p")));
 
         let input = "G (not p)";
         let lexer = lexer::Lexer::new(input);
         let parse_result2 = parser::parse(lexer);
 
         let expected2 = LTLExpression::G(Box::new(LTLExpression::Not(Box::new(
-            LTLExpression::Literal("p".into()),
+            LTLExpression::lit("p"),
         ))));
 
         assert_eq!(expected, parse_result.unwrap().expr);
@@ -57,9 +52,9 @@ mod test_parser {
         let lexer = lexer::Lexer::new(input);
         let parse_result = parser::parse(lexer);
 
-        let expected = LTLExpression::G(Box::new(LTLExpression::F(Box::new(
-            LTLExpression::Literal("p".into()),
-        ))));
+        let expected = LTLExpression::G(Box::new(LTLExpression::F(Box::new(LTLExpression::lit(
+            "p",
+        )))));
 
         //assert!(parse_result.is_ok());
         //assert_eq!(expected, parse_result.unwrap().expr);
@@ -71,13 +66,7 @@ mod test_parser {
         let lexer = lexer::Lexer::new(input);
         let parse_result = parser::parse(lexer);
 
-        let expected = LTLExpression::And(
-            Box::new(LTLExpression::Literal("p".into())),
-            Box::new(LTLExpression::And(
-                Box::new(LTLExpression::Literal("q".into())),
-                Box::new(LTLExpression::True),
-            )),
-        );
+        let expected = LTLExpression::lit("p") & (LTLExpression::lit("q") & LTLExpression::True);
 
         assert!(parse_result.is_ok());
         assert_eq!(expected, parse_result.unwrap().expr);
@@ -89,13 +78,7 @@ mod test_parser {
         let lexer = lexer::Lexer::new(input);
         let parse_result = parser::parse(lexer);
 
-        let expected = LTLExpression::Or(
-            Box::new(LTLExpression::Literal("p".into())),
-            Box::new(LTLExpression::Or(
-                Box::new(LTLExpression::Literal("q".into())),
-                Box::new(LTLExpression::False),
-            )),
-        );
+        let expected = LTLExpression::lit("p") | (LTLExpression::lit("q") | LTLExpression::False);
 
         assert!(parse_result.is_ok());
         assert_eq!(expected, parse_result.unwrap().expr);

@@ -142,7 +142,7 @@ fn extract_unitl_subf(
         LTLExpression::And(f1, f2) => extract_unitl_subf(f2, extract_unitl_subf(f1, sub_formulas)),
         LTLExpression::Or(f1, f2) => extract_unitl_subf(f2, extract_unitl_subf(f1, sub_formulas)),
         LTLExpression::U(f1, f2) => {
-            sub_formulas.push(LTLExpression::U(f1.clone(), f2.clone()));
+            sub_formulas.push(f1.clone().U(*f2.clone()));
             extract_unitl_subf(f2, extract_unitl_subf(f1, sub_formulas))
         }
         LTLExpression::R(f1, f2) => extract_unitl_subf(f1, extract_unitl_subf(f2, sub_formulas)),
@@ -164,17 +164,15 @@ pub fn extract_buchi(result: Vec<Node>, f: LTLExpression) -> GeneralBuchi {
 
         for l in n.oldf.iter() {
             match *l {
-                LTLExpression::Literal(ref lit) => {
-                    buchi_node.labels.push(LTLExpression::Literal(lit.clone()))
-                }
+                LTLExpression::Literal(ref lit) => buchi_node.labels.push(LTLExpression::lit(lit)),
                 LTLExpression::True => buchi_node.labels.push(LTLExpression::True),
                 LTLExpression::False => buchi_node.labels.push(LTLExpression::False),
                 LTLExpression::Not(ref e) => match **e {
                     LTLExpression::True => buchi_node.labels.push(LTLExpression::False),
                     LTLExpression::False => buchi_node.labels.push(LTLExpression::True),
-                    LTLExpression::Literal(ref lit) => buchi_node.labels.push(LTLExpression::Not(
-                        Box::new(LTLExpression::Literal(lit.into())),
-                    )),
+                    LTLExpression::Literal(ref lit) => {
+                        buchi_node.labels.push(!LTLExpression::lit(lit))
+                    }
                     _ => {}
                 },
                 _ => {}
@@ -392,15 +390,15 @@ mod tests {
     use super::*;
     use crate::gbuchi;
     use crate::ltl::automata::create_graph;
-    use crate::ltl::expression::rewrite;
+
+    fn lit(s: &str) -> LTLExpression {
+        LTLExpression::lit(s)
+    }
 
     #[test]
     fn it_should_extract_buchi_from_nodeset() {
         // p U q
-        let ltl_expr = LTLExpression::U(
-            Box::new(LTLExpression::Literal("p".to_owned())),
-            Box::new(LTLExpression::Literal("q".to_owned())),
-        );
+        let ltl_expr = lit("p").U(lit("q"));
 
         let nodes_result = create_graph(ltl_expr.clone());
         let buchi = extract_buchi(nodes_result, ltl_expr);
@@ -414,10 +412,7 @@ mod tests {
     #[test]
     fn it_should_convert_gba_construct_from_ltl_into_ba() {
         // Fp1 U Gp2
-        let ltl_expr = LTLExpression::U(
-            Box::new(LTLExpression::Literal("p".to_owned())),
-            Box::new(LTLExpression::Literal("q".to_owned())),
-        );
+        let ltl_expr = lit("p").U(lit("q"));
 
         let nodes_result = create_graph(ltl_expr.clone());
         let gbuchi = extract_buchi(nodes_result, ltl_expr);
@@ -431,15 +426,15 @@ mod tests {
     fn it_should_convert_gba_into_ba() {
         let gbuchi = gbuchi! {
             INIT
-                [LTLExpression::Literal("a".into())] => INIT
-                [LTLExpression::Literal("b".into())] => s1
+                [lit("a")] => INIT
+                [lit("b")] => s1
             s1
-                [LTLExpression::Literal("a".into())] => INIT
-                [LTLExpression::Literal("b".into())] => s1
+                [lit("a")] => INIT
+                [lit("b")] => s1
             ===
             init = [INIT]
-            accepting = [vec![INIT.clone()]]
-            accepting = [vec![s1.clone()]]
+            accepting = [vec![INIT]]
+            accepting = [vec![s1]]
         };
 
         let buchi: Buchi = gbuchi.into();
@@ -452,17 +447,17 @@ mod tests {
     fn it_should_convert_gba_into_ba2() {
         let gbuchi = gbuchi! {
             INIT
-               [LTLExpression::Literal("a".into())] => q3
-               [LTLExpression::Literal("b".into())] => q2
+               [lit("a")] => q3
+               [lit("b")] => q2
             q2
-                [LTLExpression::Literal("b".into())] => q2
-                [LTLExpression::Literal("a".into())] => q3
+                [lit("b")] => q2
+                [lit("a")] => q3
             q3
-                [LTLExpression::Literal("a".into())] => q3
-                [LTLExpression::Literal("b".into())] => q2
+                [lit("a")] => q3
+                [lit("b")] => q2
             q4
-                [LTLExpression::Literal("a".into())] => q3
-                [LTLExpression::Literal("b".into())] => q2
+                [lit("a")] => q3
+                [lit("b")] => q2
             ===
             init = [INIT]
             accepting = [vec![INIT.clone(), q3]]
@@ -479,31 +474,31 @@ mod tests {
     fn it_should_do_product_of_automata() {
         let mut buchi1 = Buchi::new();
         let mut r1 = BuchiNode::new("INIT".into());
-        r1.labels.push(LTLExpression::Literal("a".into()));
-        r1.labels.push(LTLExpression::Literal("b".into()));
+        r1.labels.push(lit("a"));
+        r1.labels.push(lit("b"));
         let mut r2 = BuchiNode::new("r2".into());
-        r2.labels.push(LTLExpression::Literal("a".into()));
-        r2.labels.push(LTLExpression::Literal("b".into()));
+        r2.labels.push(lit("a"));
+        r2.labels.push(lit("b"));
 
         r1.adj.push(BuchiNode {
             id: "INIT".into(),
-            labels: vec![LTLExpression::Literal("a".into())],
+            labels: vec![lit("a")],
             adj: vec![],
         });
         r1.adj.push(BuchiNode {
             id: "r2".into(),
-            labels: vec![LTLExpression::Literal("b".into())],
+            labels: vec![lit("b")],
             adj: vec![],
         });
 
         r2.adj.push(BuchiNode {
             id: "r2".into(),
-            labels: vec![LTLExpression::Literal("b".into())],
+            labels: vec![lit("b")],
             adj: vec![],
         });
         r2.adj.push(BuchiNode {
             id: "INIT".into(),
-            labels: vec![LTLExpression::Literal("a".into())],
+            labels: vec![lit("a")],
             adj: vec![],
         });
 
@@ -513,31 +508,31 @@ mod tests {
 
         let mut buchi2 = Buchi::new();
         let mut q1 = BuchiNode::new("INIT".into());
-        q1.labels.push(LTLExpression::Literal("a".into()));
-        q1.labels.push(LTLExpression::Literal("b".into()));
+        q1.labels.push(lit("a"));
+        q1.labels.push(lit("b"));
         let mut q2 = BuchiNode::new("q2".into());
-        q2.labels.push(LTLExpression::Literal("a".into()));
-        q2.labels.push(LTLExpression::Literal("b".into()));
+        q2.labels.push(lit("a"));
+        q2.labels.push(lit("b"));
 
         q1.adj.push(BuchiNode {
             id: "INIT".into(),
-            labels: vec![LTLExpression::Literal("b".into())],
+            labels: vec![lit("b")],
             adj: vec![],
         });
         q1.adj.push(BuchiNode {
             id: "q2".into(),
-            labels: vec![LTLExpression::Literal("a".into())],
+            labels: vec![lit("a")],
             adj: vec![],
         });
 
         q2.adj.push(BuchiNode {
             id: "q2".into(),
-            labels: vec![LTLExpression::Literal("a".into())],
+            labels: vec![lit("a")],
             adj: vec![],
         });
         q2.adj.push(BuchiNode {
             id: "INIT".into(),
-            labels: vec![LTLExpression::Literal("b".into())],
+            labels: vec![lit("b")],
             adj: vec![],
         });
 
@@ -554,13 +549,7 @@ mod tests {
     #[test]
     fn it_should_extract_buchi_from_nodeset2() {
         // p1 U (p2 U p3)
-        let ltl_expr = LTLExpression::U(
-            Box::new(LTLExpression::Literal("p1".to_owned())),
-            Box::new(LTLExpression::U(
-                Box::new(LTLExpression::Literal("p2".to_owned())),
-                Box::new(LTLExpression::Literal("p3".to_owned())),
-            )),
-        );
+        let ltl_expr = lit("p1").U(lit("p2").U(lit("p3")));
 
         let nodes_result = create_graph(ltl_expr.clone());
         let buchi = extract_buchi(nodes_result, ltl_expr);
@@ -571,16 +560,9 @@ mod tests {
     #[test]
     fn it_should_extract_buchi_from_nodeset3() {
         // Fp1 U Gp2
-        let ltl_expr = LTLExpression::U(
-            Box::new(LTLExpression::F(Box::new(LTLExpression::Literal(
-                "p".to_owned(),
-            )))),
-            Box::new(LTLExpression::G(Box::new(LTLExpression::Literal(
-                "q".to_owned(),
-            )))),
-        );
+        let ltl_expr = LTLExpression::F(Box::new(lit("p"))).U(LTLExpression::G(Box::new(lit("q"))));
 
-        let simplified_expr = rewrite(ltl_expr);
+        let simplified_expr = ltl_expr.rewrite();
 
         let nodes_result = create_graph(simplified_expr.clone());
         let buchi = extract_buchi(nodes_result, simplified_expr);
@@ -591,14 +573,9 @@ mod tests {
     #[test]
     fn it_should_extract_buchi_from_nodeset4() {
         // Fp1 U Gp2
-        let ltl_expr = LTLExpression::U(
-            Box::new(LTLExpression::G(Box::new(LTLExpression::Literal(
-                "p1".to_owned(),
-            )))),
-            Box::new(LTLExpression::Literal("p2".to_owned())),
-        );
+        let ltl_expr = LTLExpression::G(Box::new(lit("p1"))).U(lit("p2"));
 
-        let simplified_expr = rewrite(ltl_expr);
+        let simplified_expr = ltl_expr.rewrite();
 
         let nodes_result = create_graph(simplified_expr.clone());
         let buchi = extract_buchi(nodes_result, simplified_expr);
