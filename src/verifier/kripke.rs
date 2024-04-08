@@ -68,11 +68,11 @@ impl TryFrom<String> for KripkeStructure {
 /// δ : q →a q' iff (q, q) ∈ R and L(q') = a
 /// init ->a q iff q ∈ S0 and L(q) = a
 ///
-impl Into<Buchi> for KripkeStructure {
-    fn into(self) -> Buchi {
+impl From<KripkeStructure> for Buchi {
+    fn from(ks: KripkeStructure) -> Buchi {
         let mut buchi = Buchi::new();
 
-        for (src, dst) in self.relations.iter() {
+        for (src, dst) in ks.relations.iter() {
             if let Some(node) = buchi.get_node_mut(src.id.as_str()) {
                 let mut target = BuchiNode::new(dst.id.clone());
                 target.labels = dst
@@ -112,8 +112,8 @@ impl Into<Buchi> for KripkeStructure {
         let mut init = BuchiNode::new(INIT_NODE_ID.into());
 
         //TODO: Improve this by changing the data structure.
-        for i in self.inits {
-            let world = self.worlds.iter().find(|w| w.id == i).unwrap();
+        for i in ks.inits {
+            let world = ks.worlds.iter().find(|w| w.id == i).unwrap();
             let mut target_node = BuchiNode::new(world.id.clone());
             target_node.labels = world
                 .assignement
@@ -203,7 +203,7 @@ impl KripkeStructure {
                 Expr::World(_) => {}
                 Expr::Init(inits) => {
                     for i in inits.iter() {
-                        if let None = worlds.iter().find(|w| w.id == i.as_str()) {
+                        if !worlds.iter().any(|w| w.id == i.as_str()) {
                             return Err(format!("cannot find init world `{}`in this scope", i));
                         }
                     }

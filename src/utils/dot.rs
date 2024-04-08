@@ -3,6 +3,7 @@ use crate::{
     ltl::expression::LTLExpression,
 };
 use dot;
+use itertools::Itertools;
 use std::io::{Result as IOResult, Write};
 
 type Node = String;
@@ -19,29 +20,24 @@ pub fn render_to<W: Write>(buchi: &Buchi, output: &mut W) -> IOResult<()> {
     dot::render(buchi, output)
 }
 
-
 impl<'a> dot::Labeller<'a, Node, Edge<'a>> for Buchi {
     fn graph_id(&'a self) -> dot::Id<'a> {
         dot::Id::new("buchi").unwrap()
     }
 
     fn node_id(&'a self, n: &Node) -> dot::Id<'a> {
-        dot::Id::new(format!("{}", n)).unwrap()
+        dot::Id::new(n.to_string()).unwrap()
     }
 
     fn node_label<'b>(&'b self, n: &Node) -> dot::LabelText<'b> {
-        dot::LabelText::LabelStr(format!("{}", n).into())
+        dot::LabelText::LabelStr(n.to_string().into())
     }
     fn edge_label<'b>(&'b self, e: &Edge) -> dot::LabelText<'b> {
-        let mut tmp =
-            e.1.iter()
-                .fold(String::new(), |acc, lit| acc + &lit.to_string() + ", ");
-        tmp.pop();
-        tmp.pop(); //FIXME: understand why we have an empty last char...
-        let tmp2 = tmp.replace("¬", "~");
-        let comma_separated = tmp2.replace("⊥", "F");
+        let tmp = e.1.iter().join(", ");
+        let tmp2 = tmp.replace('¬', "~");
+        let comma_separated = tmp2.replace('⊥', "F");
 
-        dot::LabelText::LabelStr(format!("{}", comma_separated).into())
+        dot::LabelText::LabelStr(comma_separated.into())
     }
 
     fn node_shape<'b>(&'b self, n: &Node) -> Option<dot::LabelText<'b>> {
@@ -107,22 +103,18 @@ impl<'a> dot::Labeller<'a, Node, Edge<'a>> for GeneralBuchi {
     }
 
     fn node_id(&'a self, n: &Node) -> dot::Id<'a> {
-        dot::Id::new(format!("{}", n)).unwrap()
+        dot::Id::new(n.to_string()).unwrap()
     }
 
     fn node_label<'b>(&'b self, n: &Node) -> dot::LabelText<'b> {
-        dot::LabelText::LabelStr(format!("{}", n).into())
+        dot::LabelText::LabelStr(n.to_string().into())
     }
     fn edge_label<'b>(&'b self, e: &Edge) -> dot::LabelText<'b> {
-        let mut tmp =
-            e.1.iter()
-                .fold(String::new(), |acc, lit| acc + &lit.to_string() + ", ");
-        tmp.pop();
-        tmp.pop(); //FIXME: understand why we have an empty last char...
-        let tmp2 = tmp.replace("¬", "~");
-        let comma_separated = tmp2.replace("⊥", "F");
+        let tmp = e.1.iter().join(", ");
+        let tmp2 = tmp.replace('¬', "~");
+        let comma_separated = tmp2.replace('⊥', "F");
 
-        dot::LabelText::LabelStr(format!("{}", comma_separated).into())
+        dot::LabelText::LabelStr(comma_separated.into())
     }
 
     fn node_shape<'b>(&'b self, n: &Node) -> Option<dot::LabelText<'b>> {

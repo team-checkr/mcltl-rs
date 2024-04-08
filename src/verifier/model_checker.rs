@@ -1,5 +1,5 @@
 use crate::buchi::{Buchi, BuchiNode};
-use std::collections::{HashMap};
+use std::collections::HashMap;
 
 /// return true iff there exists a path to a cycle containing an accepting state
 pub fn emptiness(product_buchi: Buchi) -> Result<(), (Vec<BuchiNode>, Vec<BuchiNode>)> {
@@ -25,7 +25,7 @@ pub fn emptiness(product_buchi: Buchi) -> Result<(), (Vec<BuchiNode>, Vec<BuchiN
         let x = stack1.last().unwrap().clone();
 
         // if there is a y in succ(x) with M1[h(y)] = 0
-        let exist_y = x.adj.iter().any(|y| visited1[y.id.as_str()] == false);
+        let exist_y = x.adj.iter().any(|y| !visited1[y.id.as_str()]);
 
         if exist_y {
             // get first member of x

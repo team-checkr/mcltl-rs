@@ -20,7 +20,7 @@ pub struct Node {
 impl Node {
     pub fn new(id: String) -> Self {
         Self {
-            id: id,
+            id,
             incoming: vec![],
             next: vec![],
             oldf: vec![],
@@ -81,13 +81,7 @@ impl fmt::Display for Node {
 
 macro_rules! set {
     ( $( $x:expr ),* ) => {
-        {
-            let mut temp_set = Set::new();
-            $(
-                temp_set.insert($x);
-            )*
-            temp_set
-        }
+            Set::from([$($x),*])
     };
 }
 
@@ -107,10 +101,10 @@ pub fn create_graph(f: LTLExpression) -> Vec<Node> {
 }
 
 /// Implementation of the method describe in the paper: Simple On-the-Fly Automatic Verification of Linear Temporal Logic.
-fn expand<'a>(mut node: Node, mut nodeset: Vec<Node>) -> Vec<Node> {
+fn expand(mut node: Node, mut nodeset: Vec<Node>) -> Vec<Node> {
     if node.newf.is_empty() {
         for k in nodeset.iter_mut() {
-            if check_equal_next_and_old(&k, &node) {
+            if check_equal_next_and_old(k, &node) {
                 k.incoming.extend(node.incoming.iter().cloned());
                 return nodeset;
             }
@@ -124,24 +118,24 @@ fn expand<'a>(mut node: Node, mut nodeset: Vec<Node>) -> Vec<Node> {
         let oldfs = vec![];
         let new_node = Node::new2(new_name(), incoming, oldfs, newfs, next);
 
-        return expand(new_node, nodeset);
+        expand(new_node, nodeset)
     } else {
         let f = node.newf[0].clone();
         node.newf.remove(0);
 
         match f {
-            LTLExpression::False => return nodeset,
-            LTLExpression::Not(_) if node.oldf.contains(&f) => return nodeset,
+            LTLExpression::False => nodeset,
+            LTLExpression::Not(_) if node.oldf.contains(&f) => nodeset,
             LTLExpression::Literal(_) | LTLExpression::True | LTLExpression::Not(_) => {
                 node.oldf.push(f);
-                return expand(node, nodeset);
+                expand(node, nodeset)
             }
             LTLExpression::And(ref f1, ref f2) => {
                 let f = f.clone();
                 node.oldf.push(f);
                 node.newf.push(f1.as_ref().clone());
                 node.newf.push(f2.as_ref().clone());
-                return expand(node, nodeset);
+                expand(node, nodeset)
             }
             LTLExpression::U(_, _)
             | LTLExpression::Or(_, _)
@@ -174,7 +168,7 @@ fn expand<'a>(mut node: Node, mut nodeset: Vec<Node>) -> Vec<Node> {
 
                 let node2 = Node::new2(new_name(), incoming2, oldfs2, newfs2, next2);
 
-                return expand(node2, expand(node1, nodeset));
+                expand(node2, expand(node1, nodeset))
             }
             _ => panic!("Expression must be simplify"),
         }

@@ -32,7 +32,7 @@ struct Opts {
     property: String,
 }
 
-fn verify_property<'a>(contents: String, opts: Opts) {
+fn verify_property(contents: String, opts: Opts) {
     let kripke_program = kripke::KripkeStructure::try_from(contents);
 
     if let Err(e) = kripke_program {
@@ -79,9 +79,8 @@ fn verify_property<'a>(contents: String, opts: Opts) {
         eprintln!("\n\x1b[1;31mResult: LTL property does not hold\x1b[0m");
         eprintln!("counterexample:\n");
 
-        while !s1.is_empty() {
-            let top = s1.pop().unwrap();
-            let tmp: Vec<&str> = top.id.split("_").collect();
+        while let Some(top) = s1.pop() {
+            let tmp: Vec<&str> = top.id.split('_').collect();
             let id = tmp[0];
 
             if let Some(l) = top.labels.first() {
@@ -91,14 +90,13 @@ fn verify_property<'a>(contents: String, opts: Opts) {
             }
         }
 
-        while !s2.is_empty() {
-            let top = s2.pop().unwrap();
+        while let Some(top) = s2.pop() {
             let label = top.labels.first().unwrap();
-            let tmp: Vec<&str> = top.id.split("_").collect();
+            let tmp: Vec<&str> = top.id.split('_').collect();
             let id = tmp[0];
 
             if s2.is_empty() {
-                eprint!("{}: {}\n", id, label);
+                eprintln!("{}: {}", id, label);
             } else {
                 eprint!("{}: {} →", id, label);
             }

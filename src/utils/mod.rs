@@ -13,6 +13,7 @@ macro_rules! buchi{
     ) => {{
         let mut __graph = Buchi::new();
         $(
+            #[allow(unused_mut)]
             let mut $src = BuchiNode::new(stringify!($src).to_string());
             $(
                 $src.adj.push(
