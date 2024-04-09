@@ -1,21 +1,26 @@
-use crate::buchi::{Buchi, BuchiNode};
+use crate::{
+    buchi::{Buchi, BuchiNode},
+    state::State,
+};
 use std::collections::HashMap;
 
 /// return true iff there exists a path to a cycle containing an accepting state
-pub fn emptiness(product_buchi: Buchi) -> Result<(), (Vec<BuchiNode>, Vec<BuchiNode>)> {
-    let mut stack1: Vec<BuchiNode> =
+pub fn emptiness<S: State>(
+    product_buchi: Buchi<S>,
+) -> Result<(), (Vec<BuchiNode<S>>, Vec<BuchiNode<S>>)> {
+    let mut stack1: Vec<BuchiNode<S>> =
         Vec::from([product_buchi.init_states.first().unwrap().clone()]); // S := {s0}
-    let mut stack2: Vec<BuchiNode> = Vec::new(); // S2 := ∅
+    let mut stack2: Vec<BuchiNode<S>> = Vec::new(); // S2 := ∅
 
-    let mut visited1: HashMap<&str, bool> = HashMap::new(); // M1 := 0
-    let mut visited2: HashMap<&str, bool> = HashMap::new(); // M2 := 0
+    let mut visited1: HashMap<&S, bool> = HashMap::new(); // M1 := 0
+    let mut visited2: HashMap<&S, bool> = HashMap::new(); // M2 := 0
 
     for n in product_buchi.adj_list.iter() {
-        visited1.insert(n.id.as_ref(), false);
-        visited2.insert(n.id.as_ref(), false);
+        visited1.insert(&n.id, false);
+        visited2.insert(&n.id, false);
     }
 
-    let mut succ: HashMap<String, BuchiNode> = HashMap::new();
+    let mut succ: HashMap<S, BuchiNode<S>> = HashMap::new();
     for adj in product_buchi.adj_list.iter() {
         succ.insert(adj.id.clone(), adj.clone());
     }
@@ -25,13 +30,13 @@ pub fn emptiness(product_buchi: Buchi) -> Result<(), (Vec<BuchiNode>, Vec<BuchiN
         let x = stack1.last().unwrap().clone();
 
         // if there is a y in succ(x) with M1[h(y)] = 0
-        let exist_y = x.adj.iter().any(|y| !visited1[y.id.as_str()]);
+        let exist_y = x.adj.iter().any(|y| !visited1[&y.id]);
 
         if exist_y {
             // get first member of x
             let succ_x = &succ[&x.id];
             let y = succ_x.adj.first().unwrap();
-            *visited1.get_mut(y.id.as_str()).unwrap() = true;
+            *visited1.get_mut(&y.id).unwrap() = true;
             stack1.push(y.clone());
         } else {
             let x = stack1.pop().unwrap().clone();
@@ -51,17 +56,17 @@ pub fn emptiness(product_buchi: Buchi) -> Result<(), (Vec<BuchiNode>, Vec<BuchiN
                         return Err((stack1, stack2));
                     }
 
-                    if succ_v.adj.iter().all(|a| visited2[a.id.as_str()]) {
+                    if succ_v.adj.iter().all(|a| visited2[&a.id]) {
                         stack2.pop();
                     } else {
                         let succ_v = &succ[&v.id];
                         let w = succ_v
                             .adj
                             .iter()
-                            .find(|a| !visited2.get(a.id.as_str()).unwrap())
-                            .map(|w| succ[w.id.as_str()].clone())
+                            .find(|a| !visited2.get(&a.id).unwrap())
+                            .map(|w| succ[&w.id].clone())
                             .unwrap(); // first succ(v) with M2[h(w)] = 0
-                        *visited2.get_mut(w.id.as_str()).unwrap() = true;
+                        *visited2.get_mut(&w.id).unwrap() = true;
                         stack2.push(w);
                     }
                 }

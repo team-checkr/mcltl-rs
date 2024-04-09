@@ -1,24 +1,21 @@
 use std::collections::HashSet as Set;
 use std::fmt;
-use std::sync::atomic::{AtomicUsize, Ordering};
+
+use crate::state::State;
 
 use super::expression::LTLExpression;
 
-pub const INIT_NODE_ID: &str = "INIT";
-
-static NODE_NAME_COUNTER: AtomicUsize = AtomicUsize::new(1);
-
 #[derive(Debug, Clone, Eq, PartialEq, Hash)]
-pub struct Node {
-    pub id: String,
-    pub incoming: Vec<Node>,
+pub struct Node<S> {
+    pub id: S,
+    pub incoming: Vec<Node<S>>,
     pub next: Vec<LTLExpression>,
     pub oldf: Vec<LTLExpression>,
     pub newf: Vec<LTLExpression>,
 }
 
-impl Node {
-    pub fn new(id: String) -> Self {
+impl<S: State> Node<S> {
+    pub fn new(id: S) -> Self {
         Self {
             id,
             incoming: vec![],
@@ -29,8 +26,8 @@ impl Node {
     }
 
     pub fn new2(
-        id: String,
-        incoming: Vec<Node>,
+        id: S,
+        incoming: Vec<Node<S>>,
         oldf: Vec<LTLExpression>,
         newf: Vec<LTLExpression>,
         next: Vec<LTLExpression>,
@@ -45,7 +42,10 @@ impl Node {
     }
 }
 
-impl fmt::Display for Node {
+impl<S> fmt::Display for Node<S>
+where
+    S: fmt::Display,
+{
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let mut buff = String::new();
         buff.push_str(&format!("{}id = {}\n", &buff, self.id));
@@ -88,20 +88,20 @@ macro_rules! set {
 /// Implementation of the method describe in the paper: Simple On-the-Fly Automatic Verification of Linear Temporal Logic.
 /// The graph constructed by the algorithm can be used to deﬁne an LGBA accepting the inﬁnite words satisfying the formula.
 /// The set of states Q will be the nodes returned by this algorithm.
-pub fn create_graph(f: LTLExpression) -> Vec<Node> {
+pub fn create_graph<S: State>(f: LTLExpression) -> Vec<Node<S>> {
     let new_begin = vec![f];
 
-    let init = Node::new(INIT_NODE_ID.to_string());
+    let init = Node::new(S::initial());
     let incoming = vec![init];
 
-    let n = Node::new2(new_name(), incoming, vec![], new_begin, vec![]);
+    let n = Node::new2(State::new_name(), incoming, vec![], new_begin, vec![]);
     let nodeset = vec![];
 
     expand(n, nodeset)
 }
 
 /// Implementation of the method describe in the paper: Simple On-the-Fly Automatic Verification of Linear Temporal Logic.
-fn expand(mut node: Node, mut nodeset: Vec<Node>) -> Vec<Node> {
+fn expand<S: State>(mut node: Node<S>, mut nodeset: Vec<Node<S>>) -> Vec<Node<S>> {
     if node.newf.is_empty() {
         for k in nodeset.iter_mut() {
             if check_equal_next_and_old(k, &node) {
@@ -116,7 +116,7 @@ fn expand(mut node: Node, mut nodeset: Vec<Node>) -> Vec<Node> {
         let next = vec![];
         let newfs = node.next.clone();
         let oldfs = vec![];
-        let new_node = Node::new2(new_name(), incoming, oldfs, newfs, next);
+        let new_node = Node::new2(S::new_name(), incoming, oldfs, newfs, next);
 
         expand(new_node, nodeset)
     } else {
@@ -153,7 +153,7 @@ fn expand(mut node: Node, mut nodeset: Vec<Node>) -> Vec<Node> {
                 let mut oldfs1 = node.oldf.clone();
                 oldfs1.push(f.clone());
 
-                let node1 = Node::new2(new_name(), incoming1, oldfs1, newfs1, next1);
+                let node1 = Node::new2(S::new_name(), incoming1, oldfs1, newfs1, next1);
 
                 let incoming2 = node.incoming.clone();
                 let next2 = node.next.clone();
@@ -166,7 +166,7 @@ fn expand(mut node: Node, mut nodeset: Vec<Node>) -> Vec<Node> {
                 let mut oldfs2 = node.oldf.clone();
                 oldfs2.push(f.clone());
 
-                let node2 = Node::new2(new_name(), incoming2, oldfs2, newfs2, next2);
+                let node2 = Node::new2(S::new_name(), incoming2, oldfs2, newfs2, next2);
 
                 expand(node2, expand(node1, nodeset))
             }
@@ -193,11 +193,6 @@ fn new2(ltle: LTLExpression) -> Set<LTLExpression> {
     }
 }
 
-fn new_name() -> String {
-    let n = NODE_NAME_COUNTER.fetch_add(1, Ordering::SeqCst);
-    format!("n{}", n)
-}
-
 //fn next1(ltle: LTLExpression) -> Set<LTLExpression> {
 //    match ltle {
 //        LTLExpression::U(f1, f2) => set! { LTLExpression::U(f1, f2) },
@@ -206,8 +201,8 @@ fn new_name() -> String {
 //    }
 //}
 
-fn check_equal_next_and_old(k: &Node, n: &Node) -> bool {
-    if k.id == INIT_NODE_ID || n.id == INIT_NODE_ID {
+fn check_equal_next_and_old<S: State>(k: &Node<S>, n: &Node<S>) -> bool {
+    if k.id.is_initial() || n.id.is_initial() {
         return false;
     }
 
@@ -246,7 +241,7 @@ mod tests {
     fn it_should_create_graph_from_ltl() {
         let expr = LTLExpression::lit("p").U(LTLExpression::lit("q")).rewrite();
 
-        let nodes = create_graph(expr);
+        let nodes = create_graph::<String>(expr);
         assert_eq!(3, nodes.len());
     }
 }

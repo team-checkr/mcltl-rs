@@ -2,17 +2,17 @@ use std::collections::HashMap as Map;
 use std::convert::TryFrom;
 
 use crate::buchi::{Buchi, BuchiNode};
-use crate::ltl::automata::INIT_NODE_ID;
 use crate::ltl::expression::LTLExpression;
+use crate::state::State;
 use plex::{lexer, parser};
 
 #[derive(Debug, Clone, Eq, PartialEq)]
-pub struct World {
-    pub id: String,
+pub struct World<S> {
+    pub id: S,
     pub assignement: Map<String, bool>,
 }
 
-impl World {
+impl<S> World<S> {
     /// Transform the assignement Map into a vector of LTLExpression
     fn assignement_into_ltle(&self) -> Vec<LTLExpression> {
         let mut buf = Vec::new();
@@ -28,13 +28,13 @@ impl World {
 }
 
 #[derive(Debug, Clone, Eq, PartialEq)]
-pub struct KripkeStructure {
-    pub inits: Vec<String>, // s0
-    pub worlds: Vec<World>,
-    pub relations: Vec<(World, World)>,
+pub struct KripkeStructure<S> {
+    pub inits: Vec<S>, // s0
+    pub worlds: Vec<World<S>>,
+    pub relations: Vec<(World<S>, World<S>)>,
 }
 
-impl TryFrom<String> for KripkeStructure {
+impl TryFrom<String> for KripkeStructure<String> {
     type Error = &'static str;
 
     fn try_from(program: String) -> Result<Self, Self::Error> {
@@ -66,12 +66,12 @@ impl TryFrom<String> for KripkeStructure {
 /// δ : q →a q' iff (q, q) ∈ R and L(q') = a
 /// init ->a q iff q ∈ S0 and L(q) = a
 ///
-impl From<KripkeStructure> for Buchi {
-    fn from(ks: KripkeStructure) -> Buchi {
+impl<S: State> From<KripkeStructure<S>> for Buchi<S> {
+    fn from(ks: KripkeStructure<S>) -> Buchi<S> {
         let mut buchi = Buchi::new();
 
         for (src, dst) in ks.relations.iter() {
-            if let Some(node) = buchi.get_node_mut(src.id.as_str()) {
+            if let Some(node) = buchi.get_node_mut(&src.id) {
                 let mut target = BuchiNode::new(dst.id.clone());
                 target.labels = dst
                     .assignement
@@ -107,7 +107,7 @@ impl From<KripkeStructure> for Buchi {
             }
         }
 
-        let mut init = BuchiNode::new(INIT_NODE_ID.into());
+        let mut init = BuchiNode::new(S::initial());
 
         //TODO: Improve this by changing the data structure.
         for i in ks.inits {
@@ -135,8 +135,8 @@ impl From<KripkeStructure> for Buchi {
     }
 }
 
-impl KripkeStructure {
-    pub fn new(inits: Vec<String>) -> Self {
+impl<S: State> KripkeStructure<S> {
+    pub fn new(inits: Vec<S>) -> Self {
         Self {
             inits,
             worlds: Vec::new(),
@@ -145,16 +145,16 @@ impl KripkeStructure {
     }
 
     /// Add a new world
-    pub fn add_world(&mut self, w: World) {
+    pub fn add_world(&mut self, w: World<S>) {
         self.worlds.push(w);
     }
 
     /// Add a new relation
-    pub fn add_relation(&mut self, w1: World, w2: World) {
+    pub fn add_relation(&mut self, w1: World<S>, w2: World<S>) {
         self.relations.push((w1, w2));
     }
 
-    fn from_exprs(exprs: Vec<Expr>) -> Result<Self, String> {
+    fn from_exprs(exprs: Vec<Expr<S>>) -> Result<Self, String> {
         let mut kripke = KripkeStructure::new(vec![]);
 
         let mut worlds = vec![];
@@ -176,23 +176,30 @@ impl KripkeStructure {
             match e {
                 Expr::Relation(src, dst) => {
                     for dst in dst.iter() {
-                        let dst_world = worlds.iter().find(|w| w.id == dst.as_str());
-                        let src_world = worlds.iter().find(|w| w.id == src.as_str());
+                        let dst_world = worlds.iter().find(|w| &w.id == dst);
+                        let src_world = worlds.iter().find(|w| &w.id == src);
 
                         match (src_world, dst_world) {
                             (Some(src), Some(dst)) => {
                                 relations.push(((*src).clone(), (*dst).clone()))
                             }
                             (Some(_), None) => {
-                                return Err(format!("cannot find world `{}` in this scope", dst));
+                                return Err(format!(
+                                    "cannot find world `{}` in this scope",
+                                    dst.name()
+                                ));
                             }
                             (None, Some(_)) => {
-                                return Err(format!("cannot find world `{}` in this scope", src));
+                                return Err(format!(
+                                    "cannot find world `{}` in this scope",
+                                    src.name()
+                                ));
                             }
                             (None, None) => {
                                 return Err(format!(
                                     "cannot find world `{}` and `{}` in this scope",
-                                    src, dst
+                                    src.name(),
+                                    dst.name()
                                 ));
                             }
                         }
@@ -201,8 +208,11 @@ impl KripkeStructure {
                 Expr::World(_) => {}
                 Expr::Init(inits) => {
                     for i in inits.iter() {
-                        if !worlds.iter().any(|w| w.id == i.as_str()) {
-                            return Err(format!("cannot find init world `{}`in this scope", i));
+                        if !worlds.iter().any(|w| &w.id == i) {
+                            return Err(format!(
+                                "cannot find init world `{}`in this scope",
+                                i.name()
+                            ));
                         }
                     }
                 }
@@ -306,10 +316,10 @@ impl<'a> KripkeLexer<'a> {
 }
 
 #[derive(Debug, Clone)]
-pub enum Expr {
-    Init(Vec<String>),
-    World(World),
-    Relation(String, Vec<String>),
+pub enum Expr<S> {
+    Init(Vec<S>),
+    World(World<S>),
+    Relation(S, Vec<S>),
 }
 
 mod parser {
@@ -336,7 +346,7 @@ mod parser {
             }
         }
 
-        statements: Vec<Expr> {
+        statements: Vec<Expr<String>> {
             => vec![],
             statements[mut st] term[e] => {
                 st.push(e);
@@ -344,7 +354,7 @@ mod parser {
             }
         }
 
-        term: Expr {
+        term: Expr<String> {
             Ident(i) Equ LBrace props[p] RBrace =>  {
                 Expr::World(World{ id: i, assignement: Map::from_iter(p.into_iter())})
             },
@@ -386,7 +396,7 @@ mod parser {
 
     pub fn parse<I: Iterator<Item = (Token, Span)>>(
         i: I,
-    ) -> Result<Vec<Expr>, (Option<(Token, Span)>, &'static str)> {
+    ) -> Result<Vec<Expr<String>>, (Option<(Token, Span)>, &'static str)> {
         parse_(i)
     }
 }
@@ -411,7 +421,7 @@ mod test_kripke {
             init = [n1, n2]
         };
 
-        let buchi: Buchi = kripke.into();
+        let buchi: Buchi<String> = kripke.into();
 
         assert_eq!(4, buchi.accepting_states.len());
         assert_eq!(1, buchi.init_states.len());
@@ -432,7 +442,7 @@ mod test_kripke {
             init = [n1]
         };
 
-        let buchi: Buchi = kripke.into();
+        let buchi: Buchi<String> = kripke.into();
 
         assert_eq!(4, buchi.accepting_states.len());
         assert_eq!(1, buchi.init_states.len());

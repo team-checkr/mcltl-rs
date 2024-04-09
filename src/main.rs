@@ -42,7 +42,7 @@ fn verify_property(contents: String, opts: Opts) {
         ok!("Parsing kripke program");
     }
 
-    let buchi_program: buchi::Buchi = kripke_program.unwrap().clone().into();
+    let buchi_program: buchi::Buchi<_> = kripke_program.unwrap().clone().into();
 
     let ltl_property = LTLExpression::try_from(opts.property.as_str());
 
@@ -62,7 +62,7 @@ fn verify_property(contents: String, opts: Opts) {
     let gbuchi_property = buchi::extract_buchi(nodes, nnf_ltl_property);
     ok!("Extracting a generalized Buchi automaton");
 
-    let buchi_property: buchi::Buchi = gbuchi_property.into();
+    let buchi_property: buchi::Buchi<(String, usize)> = gbuchi_property.into();
     ok!("converting the generalized Buchi automaton into classic Buchi automaton");
 
     let product_ba = buchi::product_automata(buchi_program.clone(), buchi_property.clone());
@@ -78,8 +78,7 @@ fn verify_property(contents: String, opts: Opts) {
         eprintln!("counterexample:\n");
 
         while let Some(top) = s1.pop() {
-            let tmp: Vec<&str> = top.id.split('_').collect();
-            let id = tmp[0];
+            let id = top.id.0;
 
             if let Some(l) = top.labels.first() {
                 eprint!("{}: {} → ", id, l);
@@ -90,8 +89,7 @@ fn verify_property(contents: String, opts: Opts) {
 
         while let Some(top) = s2.pop() {
             let label = top.labels.first().unwrap();
-            let tmp: Vec<&str> = top.id.split('_').collect();
-            let id = tmp[0];
+            let id = top.id.0;
 
             if s2.is_empty() {
                 eprintln!("{}: {}", id, label);

@@ -36,7 +36,7 @@ macro_rules! buchi{
 }
 
 #[macro_export]
-macro_rules! gbuchi{
+macro_rules! gbuchi {
     (
         $(
             $src: ident
@@ -71,7 +71,7 @@ macro_rules! gbuchi{
 }
 
 #[macro_export]
-macro_rules! kripke{
+macro_rules! kripke {
     (
         $(
             $world:ident = [$( $prop:expr),*]
@@ -83,7 +83,7 @@ macro_rules! kripke{
         ===
         init = [$( $init:ident ),*]
     ) => {{
-        let mut kripke = KripkeStructure::new(vec![]);
+        let mut kripke = KripkeStructure::<String>::new(vec![]);
 
         $(
             let mut $world = World {

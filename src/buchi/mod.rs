@@ -2,28 +2,38 @@ use std::collections::HashSet;
 use std::fmt;
 
 use crate::{
-    ltl::automata::{Node, INIT_NODE_ID},
-    ltl::expression::LTLExpression,
+    ltl::{automata::Node, expression::LTLExpression},
+    state::State,
 };
 
 #[derive(Debug, Eq, PartialEq, Clone, Hash)]
-pub struct BuchiNode {
-    pub id: String,
+pub struct BuchiNode<S> {
+    pub id: S,
     pub labels: Vec<LTLExpression>,
-    pub adj: Vec<BuchiNode>,
+    pub adj: Vec<BuchiNode<S>>,
 }
 
-impl BuchiNode {
-    pub fn new(id: String) -> Self {
+impl<S> BuchiNode<S> {
+    pub fn new(id: S) -> Self {
         Self {
             id,
             labels: Vec::new(),
             adj: Vec::new(),
         }
     }
+    pub fn map<T>(&self, f: &dyn Fn(&S) -> T) -> BuchiNode<T> {
+        BuchiNode {
+            id: f(&self.id),
+            labels: self.labels.clone(),
+            adj: self.adj.iter().map(|n| n.map(f)).collect(),
+        }
+    }
 }
 
-impl fmt::Display for BuchiNode {
+impl<S> fmt::Display for BuchiNode<S>
+where
+    S: fmt::Display,
+{
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let mut buff = String::new();
         buff.push_str(&format!("{}id = {}\n", &buff, self.id));
@@ -46,15 +56,29 @@ impl fmt::Display for BuchiNode {
 
 ///  generalized Büchi automaton (GBA) automaton.
 /// The difference with the Büchi automaton is its accepting condition, i.e., a set of sets of states.
-#[derive(Debug, Default, Eq, PartialEq)]
-pub struct GeneralBuchi {
-    pub states: Vec<String>,
-    pub accepting_states: Vec<Vec<BuchiNode>>,
-    pub init_states: Vec<BuchiNode>,
-    pub adj_list: Vec<BuchiNode>,
+#[derive(Debug, Eq, PartialEq)]
+pub struct GeneralBuchi<S> {
+    pub states: Vec<S>,
+    pub accepting_states: Vec<Vec<BuchiNode<S>>>,
+    pub init_states: Vec<BuchiNode<S>>,
+    pub adj_list: Vec<BuchiNode<S>>,
 }
 
-impl fmt::Display for GeneralBuchi {
+impl<S> Default for GeneralBuchi<S> {
+    fn default() -> Self {
+        Self {
+            states: Default::default(),
+            accepting_states: Default::default(),
+            init_states: Default::default(),
+            adj_list: Default::default(),
+        }
+    }
+}
+
+impl<S> fmt::Display for GeneralBuchi<S>
+where
+    S: fmt::Display,
+{
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let mut buff = String::new();
         for (i, ac) in self.accepting_states.iter().enumerate() {
@@ -80,14 +104,14 @@ impl fmt::Display for GeneralBuchi {
     }
 }
 
-impl GeneralBuchi {
+impl<S: State> GeneralBuchi<S> {
     pub fn new() -> Self {
         Self::default()
     }
 
-    pub fn get_node(&self, name: &str) -> Option<BuchiNode> {
+    pub fn get_node(&self, name: &S) -> Option<BuchiNode<S>> {
         for adj in self.adj_list.iter() {
-            if adj.id == name {
+            if &adj.id == name {
                 return Some(adj.clone());
             }
         }
@@ -95,29 +119,40 @@ impl GeneralBuchi {
         None
     }
 
-    pub fn get_node_mut(&mut self, name: &str) -> Option<&mut BuchiNode> {
-        self.adj_list.iter_mut().find(|adj| adj.id == name)
+    pub fn get_node_mut(&mut self, name: &S) -> Option<&mut BuchiNode<S>> {
+        self.adj_list.iter_mut().find(|adj| &adj.id == name)
     }
 }
 
 /// Büchi automaton is a type of ω-automaton, which extends
 /// a finite automaton to infinite inputs.
-#[derive(Debug, Default, Eq, PartialEq, Clone)]
-pub struct Buchi {
-    pub states: Vec<String>,
-    pub accepting_states: Vec<BuchiNode>,
-    pub init_states: Vec<BuchiNode>,
-    pub adj_list: Vec<BuchiNode>,
+#[derive(Debug, Eq, PartialEq, Clone)]
+pub struct Buchi<S> {
+    pub states: Vec<S>,
+    pub accepting_states: Vec<BuchiNode<S>>,
+    pub init_states: Vec<BuchiNode<S>>,
+    pub adj_list: Vec<BuchiNode<S>>,
 }
 
-impl Buchi {
+impl<S> Default for Buchi<S> {
+    fn default() -> Self {
+        Self {
+            states: Default::default(),
+            accepting_states: Default::default(),
+            init_states: Default::default(),
+            adj_list: Default::default(),
+        }
+    }
+}
+
+impl<S: State> Buchi<S> {
     pub fn new() -> Self {
         Self::default()
     }
 
-    pub fn get_node(&self, name: &str) -> Option<BuchiNode> {
+    pub fn get_node(&self, name: &S) -> Option<BuchiNode<S>> {
         for adj in self.adj_list.iter() {
-            if adj.id == name {
+            if &adj.id == name {
                 return Some(adj.clone());
             }
         }
@@ -125,8 +160,8 @@ impl Buchi {
         None
     }
 
-    pub fn get_node_mut(&mut self, name: &str) -> Option<&mut BuchiNode> {
-        self.adj_list.iter_mut().find(|adj| adj.id == name)
+    pub fn get_node_mut(&mut self, name: &S) -> Option<&mut BuchiNode<S>> {
+        self.adj_list.iter_mut().find(|adj| &adj.id == name)
     }
 }
 
@@ -155,7 +190,7 @@ fn extract_unitl_subf(
 }
 
 /// LGBA construction from create_graph set Q result
-pub fn extract_buchi(result: Vec<Node>, f: LTLExpression) -> GeneralBuchi {
+pub fn extract_buchi<S: State>(result: Vec<Node<S>>, f: LTLExpression) -> GeneralBuchi<S> {
     let mut buchi = GeneralBuchi::new();
 
     for n in result.iter() {
@@ -187,7 +222,7 @@ pub fn extract_buchi(result: Vec<Node>, f: LTLExpression) -> GeneralBuchi {
         let buchi_node = buchi.get_node(&n.id).unwrap();
 
         for k in n.incoming.iter() {
-            if k.id == *INIT_NODE_ID {
+            if k.id.is_initial() {
                 initial_states.push(buchi_node.clone());
             } else {
                 buchi
@@ -199,8 +234,8 @@ pub fn extract_buchi(result: Vec<Node>, f: LTLExpression) -> GeneralBuchi {
         }
     }
 
-    let mut init_state = BuchiNode::new(INIT_NODE_ID.to_string());
-    buchi.states.push(INIT_NODE_ID.to_string());
+    let mut init_state = BuchiNode::new(S::initial());
+    buchi.states.push(S::initial());
     init_state.adj = initial_states.clone();
     buchi.adj_list.push(init_state);
     buchi.init_states = initial_states;
@@ -235,19 +270,32 @@ pub fn extract_buchi(result: Vec<Node>, f: LTLExpression) -> GeneralBuchi {
 /// * `q'0 = ( q0,1 )`
 /// * `∆' = { ( (q,i), a, (q',j) ) | (q,a,q') ∈ ∆ and if q ∈ Fi then j=((i+1) mod n) else j=i }`
 /// * `F'=F1× {1}`
-impl From<GeneralBuchi> for Buchi {
-    fn from(general_buchi: GeneralBuchi) -> Buchi {
-        let mut ba = Buchi::new();
+impl<S: State> From<GeneralBuchi<S>> for Buchi<(S, usize)> {
+    fn from(general_buchi: GeneralBuchi<S>) -> Buchi<(S, usize)> {
+        let mut ba: Buchi<(S, usize)> = Buchi::new();
 
         if general_buchi.accepting_states.is_empty() {
-            ba.accepting_states = general_buchi.adj_list.clone();
-            ba.adj_list = general_buchi.adj_list.clone();
-            ba.init_states = general_buchi.init_states.clone();
+            // TODO: Is this right?
+            ba.accepting_states = general_buchi
+                .adj_list
+                .iter()
+                .map(|n| n.map(&|s| (s.clone(), usize::initial())))
+                .collect();
+            ba.adj_list = general_buchi
+                .adj_list
+                .iter()
+                .map(|n| n.map(&|s| (s.clone(), usize::initial())))
+                .collect();
+            ba.init_states = general_buchi
+                .init_states
+                .iter()
+                .map(|n| n.map(&|s| (s.clone(), usize::initial())))
+                .collect();
             return ba;
         }
         for (i, _) in general_buchi.accepting_states.iter().enumerate() {
             for n in general_buchi.adj_list.iter() {
-                let mut buchi_node = BuchiNode::new(format!("{}{}", n.id, i));
+                let mut buchi_node = BuchiNode::new((n.id.clone(), i));
                 buchi_node.labels = n.labels.clone();
                 ba.adj_list.push(buchi_node);
             }
@@ -260,11 +308,9 @@ impl From<GeneralBuchi> for Buchi {
                     } else {
                         i
                     };
-                    let ba_node = ba
-                        .get_node_mut(format!("{}{}", node.id, i).as_str())
-                        .unwrap();
+                    let ba_node = ba.get_node_mut(&(node.id.clone(), i)).unwrap();
                     ba_node.adj.push(BuchiNode {
-                        id: format!("{}{}", adj.id, j),
+                        id: (adj.id.clone(), j),
                         labels: adj.labels.clone(),
                         adj: vec![],
                     });
@@ -273,11 +319,11 @@ impl From<GeneralBuchi> for Buchi {
         }
         // q'0 = ( q0,1 ), here we start to count at 0
         let init_node = ba
-            .get_node(format!("{}0", INIT_NODE_ID).as_str())
+            .get_node(&(S::initial(), usize::initial()))
             .unwrap_or_else(|| {
                 panic!(
-                    "cannot find the init node {}0 but it should exist",
-                    INIT_NODE_ID
+                    "cannot find the init node `{}` but it should exist",
+                    (S::initial(), usize::initial()).name()
                 )
             });
         ba.init_states.push(init_node.clone());
@@ -285,7 +331,7 @@ impl From<GeneralBuchi> for Buchi {
         let f_1 = general_buchi.accepting_states.first().unwrap();
         for accepting_state in f_1.iter() {
             let node = ba
-                .get_node(format!("{}0", accepting_state.id).as_str())
+                .get_node(&(accepting_state.id.clone(), usize::initial()))
                 .unwrap();
             ba.accepting_states.push(node);
         }
@@ -305,12 +351,15 @@ impl From<GeneralBuchi> for Buchi {
 /// given by `∆((q1, q2), a, (q1', q2')) ∈ ∆`
 /// iff `(q1, a, q1') ∈ ∆1`
 /// and `(q2, a, q2') ∈ ∆2`
-pub fn product_automata(program: Buchi, property: Buchi) -> Buchi {
+pub fn product_automata<S: State, T: State>(
+    program: Buchi<S>,
+    property: Buchi<T>,
+) -> Buchi<(S, T)> {
     let mut product_buchi = Buchi::new();
 
     for n1 in program.adj_list.iter() {
         for n2 in property.adj_list.iter() {
-            let product_id = format!("{}_{}", n1.id, n2.id);
+            let product_id = (n1.id.clone(), n2.id.clone());
             let product_node = BuchiNode::new(product_id);
             product_buchi.adj_list.push(product_node);
         }
@@ -318,14 +367,12 @@ pub fn product_automata(program: Buchi, property: Buchi) -> Buchi {
 
     // transition function ∆
     for bn1 in product_buchi.adj_list.clone().iter() {
-        let names: Vec<&str> = bn1.id.split('_').collect();
-        let q1 = program.get_node(names[0]).unwrap();
-        let q1_prime = property.get_node(names[1]).unwrap();
+        let q1 = program.get_node(&bn1.id.0).unwrap();
+        let q1_prime = property.get_node(&bn1.id.1).unwrap();
 
         for bn2 in product_buchi.adj_list.clone().iter() {
-            let names: Vec<&str> = bn2.id.split('_').collect();
-            let q2 = program.get_node(names[0]).unwrap();
-            let q2_prime = property.get_node(names[1]).unwrap();
+            let q2 = program.get_node(&bn2.id.0).unwrap();
+            let q2_prime = property.get_node(&bn2.id.1).unwrap();
 
             // collect all labels
             let mut labels = HashSet::new();
@@ -344,7 +391,7 @@ pub fn product_automata(program: Buchi, property: Buchi) -> Buchi {
                         .iter()
                         .any(|b| b.id == q2_prime.id && b.labels.contains(label))
                 {
-                    if let Some(product_node) = product_buchi.get_node_mut(bn1.id.as_str()) {
+                    if let Some(product_node) = product_buchi.get_node_mut(&bn1.id) {
                         let mut tmp_node = bn2.clone();
                         tmp_node.labels = vec![label.clone()];
                         product_node.adj.push(tmp_node.clone());
@@ -357,8 +404,7 @@ pub fn product_automata(program: Buchi, property: Buchi) -> Buchi {
     // F := { F1 x Q2, Q1 x F2 }
     for a in program.accepting_states.iter() {
         for adj in product_buchi.adj_list.iter() {
-            let names: Vec<&str> = adj.id.split('_').collect();
-            if a.id == names[0] {
+            if a.id == adj.id.0 {
                 product_buchi.accepting_states.push(adj.clone());
             }
         }
@@ -366,17 +412,19 @@ pub fn product_automata(program: Buchi, property: Buchi) -> Buchi {
 
     for a in property.accepting_states.iter() {
         for adj in product_buchi.adj_list.iter() {
-            let names: Vec<&str> = adj.id.split('_').collect();
-            if a.id == names[1] {
+            if a.id == adj.id.1 {
                 product_buchi.accepting_states.push(adj.clone());
             }
         }
     }
 
     // I := I1 x I2
-    if let Some(node) = product_buchi.get_node("INIT_INIT0") {
+    // if let Some(node) = product_buchi.get_node("INIT_INIT0") {
+    if let Some(node) = product_buchi.get_node(&State::initial()) {
         product_buchi.init_states = vec![node];
-    } else if let Some(node) = product_buchi.get_node("INIT_INIT") {
+        // TODO: This is probably not correct
+        // } else if let Some(node) = product_buchi.get_node("INIT_INIT") {
+    } else if let Some(node) = product_buchi.get_node(&State::initial()) {
         product_buchi.init_states = vec![node];
     } else {
         unreachable!("cannot find the INIT product state, this should not happend");
@@ -400,7 +448,7 @@ mod tests {
         // p U q
         let ltl_expr = lit("p").U(lit("q"));
 
-        let nodes_result = create_graph(ltl_expr.clone());
+        let nodes_result = create_graph::<String>(ltl_expr.clone());
         let buchi = extract_buchi(nodes_result, ltl_expr);
 
         assert_eq!(4, buchi.states.len());
@@ -414,10 +462,10 @@ mod tests {
         // Fp1 U Gp2
         let ltl_expr = lit("p").U(lit("q"));
 
-        let nodes_result = create_graph(ltl_expr.clone());
+        let nodes_result = create_graph::<String>(ltl_expr.clone());
         let gbuchi = extract_buchi(nodes_result, ltl_expr);
 
-        let buchi: Buchi = gbuchi.into();
+        let buchi: Buchi<_> = gbuchi.into();
 
         assert_eq!(2, buchi.accepting_states.len());
     }
@@ -437,7 +485,7 @@ mod tests {
             accepting = [vec![s1]]
         };
 
-        let buchi: Buchi = gbuchi.into();
+        let buchi: Buchi<_> = gbuchi.into();
 
         assert_eq!(1, buchi.accepting_states.len());
         assert_eq!(4, buchi.adj_list.len());
@@ -464,7 +512,7 @@ mod tests {
             accepting = [vec![INIT, q2]]
         };
 
-        let buchi: Buchi = gbuchi.into();
+        let buchi: Buchi<_> = gbuchi.into();
         assert_eq!(2, buchi.accepting_states.len());
         assert_eq!(1, buchi.init_states.len());
         assert_eq!(8, buchi.adj_list.len());
@@ -472,7 +520,7 @@ mod tests {
 
     #[test]
     fn it_should_do_product_of_automata() {
-        let mut buchi1 = Buchi::new();
+        let mut buchi1: Buchi<String> = Buchi::new();
         let mut r1 = BuchiNode::new("INIT".into());
         r1.labels.push(lit("a"));
         r1.labels.push(lit("b"));
@@ -506,7 +554,7 @@ mod tests {
         buchi1.init_states.push(r1.clone());
         buchi1.adj_list = vec![r1, r2];
 
-        let mut buchi2 = Buchi::new();
+        let mut buchi2: Buchi<String> = Buchi::new();
         let mut q1 = BuchiNode::new("INIT".into());
         q1.labels.push(lit("a"));
         q1.labels.push(lit("b"));
@@ -551,7 +599,7 @@ mod tests {
         // p1 U (p2 U p3)
         let ltl_expr = lit("p1").U(lit("p2").U(lit("p3")));
 
-        let nodes_result = create_graph(ltl_expr.clone());
+        let nodes_result = create_graph::<String>(ltl_expr.clone());
         let buchi = extract_buchi(nodes_result, ltl_expr);
 
         assert_eq!(7, buchi.states.len());
@@ -564,7 +612,7 @@ mod tests {
 
         let simplified_expr = ltl_expr.rewrite();
 
-        let nodes_result = create_graph(simplified_expr.clone());
+        let nodes_result = create_graph::<String>(simplified_expr.clone());
         let buchi = extract_buchi(nodes_result, simplified_expr);
 
         assert_eq!(19, buchi.states.len());
@@ -577,7 +625,7 @@ mod tests {
 
         let simplified_expr = ltl_expr.rewrite();
 
-        let nodes_result = create_graph(simplified_expr.clone());
+        let nodes_result = create_graph::<String>(simplified_expr.clone());
         let buchi = extract_buchi(nodes_result, simplified_expr);
 
         assert_eq!(9, buchi.states.len());
