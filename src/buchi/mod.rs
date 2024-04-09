@@ -270,41 +270,41 @@ pub fn extract_buchi<S: State>(result: Vec<Node<S>>, f: LTLExpression) -> Genera
 /// * `q'0 = ( q0,1 )`
 /// * `∆' = { ( (q,i), a, (q',j) ) | (q,a,q') ∈ ∆ and if q ∈ Fi then j=((i+1) mod n) else j=i }`
 /// * `F'=F1× {1}`
-impl<S: State> From<GeneralBuchi<S>> for Buchi<(S, usize)> {
-    fn from(general_buchi: GeneralBuchi<S>) -> Buchi<(S, usize)> {
+impl<S: State> GeneralBuchi<S> {
+    pub fn to_buchi(&self) -> Buchi<(S, usize)> {
         let mut ba: Buchi<(S, usize)> = Buchi::new();
 
-        if general_buchi.accepting_states.is_empty() {
+        if self.accepting_states.is_empty() {
             // TODO: Is this right?
-            ba.accepting_states = general_buchi
+            ba.accepting_states = self
                 .adj_list
                 .iter()
                 .map(|n| n.map(&|s| (s.clone(), usize::initial())))
                 .collect();
-            ba.adj_list = general_buchi
+            ba.adj_list = self
                 .adj_list
                 .iter()
                 .map(|n| n.map(&|s| (s.clone(), usize::initial())))
                 .collect();
-            ba.init_states = general_buchi
+            ba.init_states = self
                 .init_states
                 .iter()
                 .map(|n| n.map(&|s| (s.clone(), usize::initial())))
                 .collect();
             return ba;
         }
-        for (i, _) in general_buchi.accepting_states.iter().enumerate() {
-            for n in general_buchi.adj_list.iter() {
+        for (i, _) in self.accepting_states.iter().enumerate() {
+            for n in self.adj_list.iter() {
                 let mut buchi_node = BuchiNode::new((n.id.clone(), i));
                 buchi_node.labels = n.labels.clone();
                 ba.adj_list.push(buchi_node);
             }
         }
-        for (i, f) in general_buchi.accepting_states.iter().enumerate() {
-            for node in general_buchi.adj_list.iter() {
+        for (i, f) in self.accepting_states.iter().enumerate() {
+            for node in self.adj_list.iter() {
                 for adj in node.adj.iter() {
                     let j = if f.iter().any(|n| n.id == node.id) {
-                        (i + 1) % general_buchi.accepting_states.len()
+                        (i + 1) % self.accepting_states.len()
                     } else {
                         i
                     };
@@ -328,7 +328,7 @@ impl<S: State> From<GeneralBuchi<S>> for Buchi<(S, usize)> {
             });
         ba.init_states.push(init_node.clone());
         // F'=F1 × {1}
-        let f_1 = general_buchi.accepting_states.first().unwrap();
+        let f_1 = self.accepting_states.first().unwrap();
         for accepting_state in f_1.iter() {
             let node = ba
                 .get_node(&(accepting_state.id.clone(), usize::initial()))
@@ -465,7 +465,7 @@ mod tests {
         let nodes_result = create_graph::<String>(ltl_expr.clone());
         let gbuchi = extract_buchi(nodes_result, ltl_expr);
 
-        let buchi: Buchi<_> = gbuchi.into();
+        let buchi = gbuchi.to_buchi();
 
         assert_eq!(2, buchi.accepting_states.len());
     }
@@ -485,7 +485,7 @@ mod tests {
             accepting = [vec![s1]]
         };
 
-        let buchi: Buchi<_> = gbuchi.into();
+        let buchi = gbuchi.to_buchi();
 
         assert_eq!(1, buchi.accepting_states.len());
         assert_eq!(4, buchi.adj_list.len());
@@ -512,7 +512,7 @@ mod tests {
             accepting = [vec![INIT, q2]]
         };
 
-        let buchi: Buchi<_> = gbuchi.into();
+        let buchi = gbuchi.to_buchi();
         assert_eq!(2, buchi.accepting_states.len());
         assert_eq!(1, buchi.init_states.len());
         assert_eq!(8, buchi.adj_list.len());

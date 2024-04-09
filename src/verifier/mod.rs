@@ -33,7 +33,7 @@ pub fn verify<'a>(
 
     let gbuchi_property = buchi::extract_buchi(nodes, nnf_ltl_property);
 
-    let buchi_property: buchi::Buchi<(String, usize)> = gbuchi_property.into();
+    let buchi_property = gbuchi_property.to_buchi();
 
     let product_ba = buchi::product_automata(buchi_program.clone(), buchi_property.clone());
 

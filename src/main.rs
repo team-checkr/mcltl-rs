@@ -56,13 +56,13 @@ fn verify_property(contents: String, opts: Opts) {
     let nnf_ltl_property = ltl_property.unwrap().rewrite().nnf();
     ok!("Converting LTL property in NNF");
 
-    let nodes = automata::create_graph(nnf_ltl_property.clone());
+    let nodes = automata::create_graph::<String>(nnf_ltl_property.clone());
     ok!("Constructing the graph of the LTL property");
 
     let gbuchi_property = buchi::extract_buchi(nodes, nnf_ltl_property);
     ok!("Extracting a generalized Buchi automaton");
 
-    let buchi_property: buchi::Buchi<(String, usize)> = gbuchi_property.into();
+    let buchi_property = gbuchi_property.to_buchi();
     ok!("converting the generalized Buchi automaton into classic Buchi automaton");
 
     let product_ba = buchi::product_automata(buchi_program.clone(), buchi_property.clone());

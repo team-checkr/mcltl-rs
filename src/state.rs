@@ -52,6 +52,6 @@ where
         (A::new_name(), B::new_name())
     }
     fn name(&self) -> String {
-        format!("{}_{}", self.0.name(), self.1.name())
+        format!("({}, {})", self.0.name(), self.1.name())
     }
 }

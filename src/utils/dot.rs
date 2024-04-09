@@ -24,7 +24,18 @@ impl<'a, S: State> dot::Labeller<'a, Node, Edge<'a>> for Buchi<S> {
     }
 
     fn node_id(&'a self, n: &Node) -> dot::Id<'a> {
-        dot::Id::new(n.to_string()).unwrap()
+        static COUNTER: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+        static CACHE: once_cell::sync::Lazy<
+            std::sync::Arc<std::sync::Mutex<std::collections::HashMap<String, usize>>>,
+        > = once_cell::sync::Lazy::new(Default::default);
+
+        let name = n.to_string();
+        let id = *CACHE
+            .lock()
+            .unwrap()
+            .entry(name)
+            .or_insert_with(|| COUNTER.fetch_add(1, std::sync::atomic::Ordering::SeqCst));
+        dot::Id::new(format!("n{id}")).unwrap()
     }
 
     fn node_label<'b>(&'b self, n: &Node) -> dot::LabelText<'b> {
