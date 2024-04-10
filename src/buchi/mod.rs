@@ -175,12 +175,10 @@ impl<S: fmt::Display + fmt::Debug> fmt::Display for Buchi<S> {
             .iter()
             .sorted_by_key(|s| format!("{:?}", s.id))
         {
-            writeln!(f, " {:?} {:?}", state.id, state.labels)?;
-            writeln!(
-                f,
-                "   => {{{:?}}}",
-                state.adj.iter().map(|adj| &adj.id).format(" ")
-            )?;
+            writeln!(f, " {:?} [{}]", state.id, state.labels.iter().format(", "))?;
+            for adj in state.adj.iter() {
+                writeln!(f, "   =[{}]=> {:?}", adj.labels.iter().format(", "), adj.id)?;
+            }
         }
         writeln!(
             f,

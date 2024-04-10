@@ -107,15 +107,16 @@ mod test_emptiness {
         insta::assert_snapshot!(buchi, @r###"
         States:
          "q0" []
-           => {"q1"}
+           =[a]=> "q1"
          "q1" []
-           => {"q2"}
+           =[b]=> "q2"
          "q2" []
-           => {"q3" "q4"}
+           =[e]=> "q3"
+           =[c]=> "q4"
          "q3" []
-           => {"q1"}
+           =[f]=> "q1"
          "q4" []
-           => {"q3"}
+           =[d]=> "q3"
         Initial: "q0"
         Accept:  "q1"
         "###);
@@ -149,15 +150,15 @@ mod test_emptiness {
         insta::assert_snapshot!(buchi, @r###"
         States:
          "q0" []
-           => {"q1"}
+           =[a]=> "q1"
          "q1" []
-           => {"q2"}
+           =[b]=> "q2"
          "q2" []
-           => {"q3" "q4"}
+           =[e]=> "q3"
+           =[c]=> "q4"
          "q3" []
-           => {}
          "q4" []
-           => {"q3"}
+           =[d]=> "q3"
         Initial: "q0"
         Accept:  "q1"
         "###);
@@ -181,9 +182,8 @@ mod test_emptiness {
         insta::assert_snapshot!(buchi, @r###"
         States:
          "q0" []
-           => {"q1"}
+           =[a]=> "q1"
          "q1" []
-           => {}
         Initial: "q0"
         Accept:  "q0" "q1"
         "###);
