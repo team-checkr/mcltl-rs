@@ -94,7 +94,13 @@ pub fn create_graph<S: State>(f: LTLExpression) -> Vec<Node<S>> {
     let init = Node::new(S::initial());
     let incoming = vec![init];
 
-    let n = Node::new2(State::new_name(), incoming, vec![], new_begin, vec![]);
+    let n = Node::new2(
+        State::new_name(Some(1)),
+        incoming,
+        vec![],
+        new_begin,
+        vec![],
+    );
     let nodeset = vec![];
 
     expand(n, nodeset)
@@ -116,7 +122,13 @@ fn expand<S: State>(mut node: Node<S>, mut nodeset: Vec<Node<S>>) -> Vec<Node<S>
         let next = vec![];
         let newfs = node.next.clone();
         let oldfs = vec![];
-        let new_node = Node::new2(S::new_name(), incoming, oldfs, newfs, next);
+        let new_node = Node::new2(
+            S::new_name(Some(nodeset.len() + 2)),
+            incoming,
+            oldfs,
+            newfs,
+            next,
+        );
 
         expand(new_node, nodeset)
     } else {
@@ -153,7 +165,13 @@ fn expand<S: State>(mut node: Node<S>, mut nodeset: Vec<Node<S>>) -> Vec<Node<S>
                 let mut oldfs1 = node.oldf.clone();
                 oldfs1.push(f.clone());
 
-                let node1 = Node::new2(S::new_name(), incoming1, oldfs1, newfs1, next1);
+                let node1 = Node::new2(
+                    S::new_name(Some(nodeset.len() + 2)),
+                    incoming1,
+                    oldfs1,
+                    newfs1,
+                    next1,
+                );
 
                 let incoming2 = node.incoming.clone();
                 let next2 = node.next.clone();
@@ -166,7 +184,13 @@ fn expand<S: State>(mut node: Node<S>, mut nodeset: Vec<Node<S>>) -> Vec<Node<S>
                 let mut oldfs2 = node.oldf.clone();
                 oldfs2.push(f.clone());
 
-                let node2 = Node::new2(S::new_name(), incoming2, oldfs2, newfs2, next2);
+                let node2 = Node::new2(
+                    S::new_name(Some(nodeset.len() + 2)),
+                    incoming2,
+                    oldfs2,
+                    newfs2,
+                    next2,
+                );
 
                 expand(node2, expand(node1, nodeset))
             }

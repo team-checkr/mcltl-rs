@@ -77,32 +77,33 @@ impl<S> Default for GeneralBuchi<S> {
     }
 }
 
-impl<S> fmt::Display for GeneralBuchi<S>
-where
-    S: fmt::Display,
-{
+impl<S: State + fmt::Debug> fmt::Display for GeneralBuchi<S> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let mut buff = String::new();
-        for (i, ac) in self.accepting_states.iter().enumerate() {
-            let states = ac
-                .iter()
-                .fold("".to_string(), |acc, a| acc + &format!("{},", a.id));
-            buff.push_str(&format!("{}accepting_state[{}] = {:?}\n", &buff, i, states));
-        }
-
-        let init_states = self
-            .init_states
-            .iter()
-            .fold("".to_string(), |acc, init| acc + &format!("{},", init.id));
-        buff.push_str(&format!("{}init_states = [{}]\n", &buff, init_states));
-
-        let adjs = self
+        writeln!(f, "States:")?;
+        for state in self
             .adj_list
             .iter()
-            .fold("".to_string(), |acc, adj| acc + &format!("{},", adj.id));
-        buff.push_str(&format!("{}adj = [{}]\n", &buff, adjs));
-
-        write!(f, "{}", buff)
+            .sorted_by_key(|s| format!("{:?}", s.id))
+        {
+            writeln!(f, " {:?} [{}]", state.id, state.labels.iter().format(", "))?;
+            for adj in state.adj.iter() {
+                writeln!(f, "   =[{}]=> {:?}", adj.labels.iter().format(", "), adj.id)?;
+            }
+        }
+        writeln!(
+            f,
+            "Initial: {:?}",
+            self.init_states.iter().map(|s| &s.id).format(" ")
+        )?;
+        writeln!(
+            f,
+            "Accept:  [{}]",
+            self.accepting_states
+                .iter()
+                .map(|s| format!("{{{:?}}}", s.iter().map(|s| &s.id).format(" ")))
+                .format(", ")
+        )?;
+        Ok(())
     }
 }
 
@@ -167,7 +168,7 @@ impl<S: State> Buchi<S> {
     }
 }
 
-impl<S: fmt::Display + fmt::Debug> fmt::Display for Buchi<S> {
+impl<S: State + fmt::Debug> fmt::Display for Buchi<S> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         writeln!(f, "States:")?;
         for state in self
@@ -187,8 +188,8 @@ impl<S: fmt::Display + fmt::Debug> fmt::Display for Buchi<S> {
         )?;
         writeln!(
             f,
-            "Accept:  {:?}",
-            self.accepting_states.iter().map(|s| &s.id).format(" ")
+            "Accept:  [{:?}]",
+            self.accepting_states.iter().map(|s| &s.id).format(", ")
         )?;
         Ok(())
     }
@@ -480,6 +481,22 @@ mod tests {
         let nodes_result = create_graph::<String>(ltl_expr.clone());
         let buchi = extract_buchi(nodes_result, ltl_expr);
 
+        insta::assert_snapshot!(buchi, @r###"
+        States:
+         "INIT" []
+           =[p]=> "n2"
+           =[q]=> "n3"
+         "n2" [p]
+           =[p]=> "n2"
+           =[q]=> "n3"
+         "n3" [q]
+           =[]=> "n4"
+         "n4" []
+           =[]=> "n4"
+        Initial: "n2" "n3"
+        Accept:  [{"n3" "n4"}]
+        "###);
+
         assert_eq!(4, buchi.states.len());
         assert_eq!(1, buchi.accepting_states.len());
         assert_eq!(2, buchi.init_states.len());
@@ -494,7 +511,39 @@ mod tests {
         let nodes_result = create_graph::<String>(ltl_expr.clone());
         let gbuchi = extract_buchi(nodes_result, ltl_expr);
 
+        insta::assert_snapshot!(gbuchi, @r###"
+        States:
+         "INIT" []
+           =[p]=> "n2"
+           =[q]=> "n3"
+         "n2" [p]
+           =[p]=> "n2"
+           =[q]=> "n3"
+         "n3" [q]
+           =[]=> "n4"
+         "n4" []
+           =[]=> "n4"
+        Initial: "n2" "n3"
+        Accept:  [{"n3" "n4"}]
+        "###);
+
         let buchi = gbuchi.to_buchi();
+
+        insta::assert_snapshot!(buchi, @r###"
+        States:
+         ("INIT", 0) []
+           =[p]=> ("n2", 0)
+           =[q]=> ("n3", 0)
+         ("n2", 0) [p]
+           =[p]=> ("n2", 0)
+           =[q]=> ("n3", 0)
+         ("n3", 0) [q]
+           =[]=> ("n4", 0)
+         ("n4", 0) []
+           =[]=> ("n4", 0)
+        Initial: ("INIT", 0)
+        Accept:  [("n3", 0), ("n4", 0)]
+        "###);
 
         assert_eq!(2, buchi.accepting_states.len());
     }
@@ -514,7 +563,37 @@ mod tests {
             accepting = [vec![s1]]
         };
 
+        insta::assert_snapshot!(gbuchi, @r###"
+        States:
+         "INIT" []
+           =[a]=> "INIT"
+           =[b]=> "s1"
+         "s1" []
+           =[a]=> "INIT"
+           =[b]=> "s1"
+        Initial: "INIT"
+        Accept:  [{"INIT"}, {"s1"}]
+        "###);
+
         let buchi = gbuchi.to_buchi();
+
+        insta::assert_snapshot!(buchi, @r###"
+        States:
+         ("INIT", 0) []
+           =[a]=> ("INIT", 1)
+           =[b]=> ("s1", 1)
+         ("INIT", 1) []
+           =[a]=> ("INIT", 1)
+           =[b]=> ("s1", 1)
+         ("s1", 0) []
+           =[a]=> ("INIT", 0)
+           =[b]=> ("s1", 0)
+         ("s1", 1) []
+           =[a]=> ("INIT", 0)
+           =[b]=> ("s1", 0)
+        Initial: ("INIT", 0)
+        Accept:  [("INIT", 0)]
+        "###);
 
         assert_eq!(1, buchi.accepting_states.len());
         assert_eq!(4, buchi.adj_list.len());
@@ -541,7 +620,56 @@ mod tests {
             accepting = [vec![INIT, q2]]
         };
 
+        insta::assert_snapshot!(gbuchi, @r###"
+        States:
+         "INIT" []
+           =[a]=> "q3"
+           =[b]=> "q2"
+         "q2" []
+           =[b]=> "q2"
+           =[a]=> "q3"
+         "q3" []
+           =[a]=> "q3"
+           =[b]=> "q2"
+         "q4" []
+           =[a]=> "q3"
+           =[b]=> "q2"
+        Initial: "INIT"
+        Accept:  [{"INIT" "q3"}, {"INIT" "q2"}]
+        "###);
+
         let buchi = gbuchi.to_buchi();
+
+        insta::assert_snapshot!(buchi, @r###"
+        States:
+         ("INIT", 0) []
+           =[a]=> ("q3", 1)
+           =[b]=> ("q2", 1)
+         ("INIT", 1) []
+           =[a]=> ("q3", 0)
+           =[b]=> ("q2", 0)
+         ("q2", 0) []
+           =[b]=> ("q2", 0)
+           =[a]=> ("q3", 0)
+         ("q2", 1) []
+           =[b]=> ("q2", 0)
+           =[a]=> ("q3", 0)
+         ("q3", 0) []
+           =[a]=> ("q3", 1)
+           =[b]=> ("q2", 1)
+         ("q3", 1) []
+           =[a]=> ("q3", 1)
+           =[b]=> ("q2", 1)
+         ("q4", 0) []
+           =[a]=> ("q3", 0)
+           =[b]=> ("q2", 0)
+         ("q4", 1) []
+           =[a]=> ("q3", 1)
+           =[b]=> ("q2", 1)
+        Initial: ("INIT", 0)
+        Accept:  [("INIT", 0), ("q3", 0)]
+        "###);
+
         assert_eq!(2, buchi.accepting_states.len());
         assert_eq!(1, buchi.init_states.len());
         assert_eq!(8, buchi.adj_list.len());
@@ -583,6 +711,18 @@ mod tests {
         buchi1.init_states.push(r1.clone());
         buchi1.adj_list = vec![r1, r2];
 
+        insta::assert_snapshot!(buchi1, @r###"
+        States:
+         "INIT" [a, b]
+           =[a]=> "INIT"
+           =[b]=> "r2"
+         "r2" [a, b]
+           =[b]=> "r2"
+           =[a]=> "INIT"
+        Initial: "INIT"
+        Accept:  ["INIT"]
+        "###);
+
         let mut buchi2: Buchi<String> = Buchi::new();
         let mut q1 = BuchiNode::new("INIT".into());
         q1.labels.push(lit("a"));
@@ -617,7 +757,37 @@ mod tests {
         buchi2.init_states.push(q1.clone());
         buchi2.adj_list = vec![q1, q2];
 
+        insta::assert_snapshot!(buchi2, @r###"
+        States:
+         "INIT" [a, b]
+           =[b]=> "INIT"
+           =[a]=> "q2"
+         "q2" [a, b]
+           =[a]=> "q2"
+           =[b]=> "INIT"
+        Initial: "INIT"
+        Accept:  ["INIT"]
+        "###);
+
         let buchi_product = product_automata(buchi1, buchi2);
+
+        insta::assert_snapshot!(buchi_product, @r###"
+        States:
+         ("INIT", "INIT") []
+           =[a]=> ("INIT", "q2")
+           =[b]=> ("r2", "INIT")
+         ("INIT", "q2") []
+           =[a]=> ("INIT", "q2")
+           =[b]=> ("r2", "INIT")
+         ("r2", "INIT") []
+           =[a]=> ("INIT", "q2")
+           =[b]=> ("r2", "INIT")
+         ("r2", "q2") []
+           =[a]=> ("INIT", "q2")
+           =[b]=> ("r2", "INIT")
+        Initial: ("INIT", "INIT")
+        Accept:  [("INIT", "INIT"), ("INIT", "q2"), ("INIT", "INIT"), ("r2", "INIT")]
+        "###);
 
         assert_eq!(4, buchi_product.adj_list.len());
         assert_eq!(1, buchi_product.init_states.len());
@@ -630,6 +800,32 @@ mod tests {
 
         let nodes_result = create_graph::<String>(ltl_expr.clone());
         let buchi = extract_buchi(nodes_result, ltl_expr);
+
+        insta::assert_snapshot!(buchi, @r###"
+        States:
+         "INIT" []
+           =[p1]=> "n2"
+           =[p2]=> "n3"
+           =[p2]=> "n3"
+         "n2" [p1]
+           =[p1]=> "n2"
+           =[p2]=> "n3"
+           =[p2]=> "n3"
+         "n3" [p2]
+           =[p2]=> "n4"
+           =[p3]=> "n5"
+           =[]=> "n6"
+         "n3" [p3]
+         "n4" [p2]
+           =[p2]=> "n4"
+           =[p3]=> "n5"
+         "n5" [p3]
+           =[]=> "n6"
+         "n6" []
+           =[]=> "n6"
+        Initial: "n2" "n3" "n3"
+        Accept:  [{"n3" "n4" "n5" "n6" "n3"}, {"n2" "n5" "n6" "n3"}]
+        "###);
 
         assert_eq!(7, buchi.states.len());
     }
@@ -644,6 +840,83 @@ mod tests {
         let nodes_result = create_graph::<String>(simplified_expr.clone());
         let buchi = extract_buchi(nodes_result, simplified_expr);
 
+        insta::assert_snapshot!(buchi, @r###"
+        States:
+         "INIT" []
+           =[T]=> "n2"
+           =[p, p]=> "n4"
+           =[]=> "n5"
+           =[]=> "n5"
+         "n10" [T]
+           =[T]=> "n11"
+           =[T]=> "n12"
+           =[T]=> "n13"
+           =[p]=> "n14"
+           =[p]=> "n15"
+           =[p]=> "n15"
+         "n10" [T]
+         "n11" [T]
+           =[T]=> "n11"
+           =[T]=> "n12"
+           =[p]=> "n15"
+           =[p]=> "n15"
+         "n12" [T]
+           =[T]=> "n13"
+           =[p]=> "n14"
+         "n13" [T]
+           =[T]=> "n13"
+           =[p]=> "n14"
+         "n14" [p]
+           =[]=> "n8"
+         "n15" [p]
+           =[]=> "n6"
+           =[]=> "n7"
+           =[]=> "n8"
+         "n15" [p]
+         "n18" [p]
+           =[]=> "n6"
+           =[]=> "n7"
+           =[]=> "n8"
+         "n18" [p]
+         "n2" [T]
+           =[T]=> "n2"
+           =[T, p]=> "n3"
+           =[T, p]=> "n3"
+           =[p, p]=> "n4"
+           =[T]=> "n10"
+           =[T]=> "n10"
+           =[p]=> "n18"
+           =[p]=> "n18"
+         "n3" [T, p]
+           =[T]=> "n2"
+           =[T, p]=> "n3"
+           =[T, p]=> "n3"
+           =[p, p]=> "n4"
+           =[T]=> "n10"
+           =[T]=> "n10"
+           =[p]=> "n18"
+           =[p]=> "n18"
+         "n4" [p, p]
+           =[T]=> "n2"
+           =[p, p]=> "n4"
+           =[]=> "n5"
+           =[]=> "n5"
+         "n5" []
+           =[]=> "n6"
+           =[]=> "n7"
+           =[]=> "n8"
+         "n5" []
+         "n6" []
+           =[]=> "n6"
+           =[]=> "n7"
+         "n7" []
+           =[]=> "n8"
+         "n8" []
+           =[]=> "n8"
+        Initial: "n2" "n4" "n5" "n5"
+        Accept:  [{"n5" "n6" "n7" "n8" "n5" "n10" "n11" "n12" "n13" "n14" "n15" "n15" "n10" "n18" "n18"}, {"n3" "n4" "n5" "n6" "n7" "n8" "n5" "n14" "n15" "n15" "n18" "n18"}]
+        "###);
+
         assert_eq!(19, buchi.states.len());
     }
 
@@ -656,6 +929,41 @@ mod tests {
 
         let nodes_result = create_graph::<String>(simplified_expr.clone());
         let buchi = extract_buchi(nodes_result, simplified_expr);
+
+        insta::assert_snapshot!(buchi, @r###"
+        States:
+         "INIT" []
+           =[]=> "n2"
+           =[]=> "n3"
+           =[p2]=> "n4"
+         "n2" []
+           =[]=> "n2"
+           =[]=> "n2"
+           =[]=> "n2"
+           =[]=> "n3"
+           =[p2]=> "n6"
+           =[p2]=> "n6"
+         "n3" []
+           =[]=> "n2"
+           =[]=> "n3"
+           =[p2]=> "n4"
+         "n4" [p2]
+           =[]=> "n5"
+         "n5" []
+           =[]=> "n5"
+         "n6" [p2]
+           =[]=> "n5"
+           =[]=> "n7"
+           =[]=> "n8"
+         "n6" [p2]
+         "n7" []
+           =[]=> "n7"
+           =[]=> "n8"
+         "n8" []
+           =[]=> "n5"
+        Initial: "n2" "n3" "n4"
+        Accept:  [{"n4" "n5" "n6" "n7" "n8" "n6"}]
+        "###);
 
         assert_eq!(9, buchi.states.len());
     }

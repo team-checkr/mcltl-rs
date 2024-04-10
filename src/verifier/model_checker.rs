@@ -118,7 +118,7 @@ mod test_emptiness {
          "q4" []
            =[d]=> "q3"
         Initial: "q0"
-        Accept:  "q1"
+        Accept:  ["q1"]
         "###);
 
         let res = emptiness(buchi);
@@ -160,7 +160,7 @@ mod test_emptiness {
          "q4" []
            =[d]=> "q3"
         Initial: "q0"
-        Accept:  "q1"
+        Accept:  ["q1"]
         "###);
 
         let res = emptiness(buchi);
@@ -185,7 +185,7 @@ mod test_emptiness {
            =[a]=> "q1"
          "q1" []
         Initial: "q0"
-        Accept:  "q0" "q1"
+        Accept:  ["q0", "q1"]
         "###);
 
         let res = emptiness(buchi);

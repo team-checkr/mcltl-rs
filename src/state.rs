@@ -8,7 +8,7 @@ pub trait State: Clone + PartialEq + Eq + Hash {
     fn is_initial(&self) -> bool {
         self == &Self::initial()
     }
-    fn new_name() -> Self;
+    fn new_name(hint: Option<usize>) -> Self;
     fn name(&self) -> String;
 }
 
@@ -19,8 +19,8 @@ impl State for String {
         const INIT_NODE_ID: &str = "INIT";
         INIT_NODE_ID.to_string()
     }
-    fn new_name() -> Self {
-        let counter = NODE_NAME_COUNTER.fetch_add(1, Ordering::SeqCst);
+    fn new_name(hint: Option<usize>) -> Self {
+        let counter = hint.unwrap_or_else(|| NODE_NAME_COUNTER.fetch_add(1, Ordering::SeqCst));
         format!("n{counter}")
     }
     fn name(&self) -> String {
@@ -32,8 +32,8 @@ impl State for usize {
     fn initial() -> Self {
         0
     }
-    fn new_name() -> Self {
-        NODE_NAME_COUNTER.fetch_add(1, Ordering::SeqCst)
+    fn new_name(hint: Option<usize>) -> Self {
+        hint.unwrap_or_else(|| NODE_NAME_COUNTER.fetch_add(1, Ordering::SeqCst))
     }
     fn name(&self) -> String {
         self.to_string()
@@ -48,8 +48,8 @@ where
     fn initial() -> Self {
         (A::initial(), B::initial())
     }
-    fn new_name() -> Self {
-        (A::new_name(), B::new_name())
+    fn new_name(hint: Option<usize>) -> Self {
+        (A::new_name(hint), B::new_name(hint))
     }
     fn name(&self) -> String {
         format!("({}, {})", self.0.name(), self.1.name())
