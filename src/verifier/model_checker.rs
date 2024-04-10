@@ -104,13 +104,28 @@ mod test_emptiness {
             accepting = [q1]
         };
 
+        insta::assert_snapshot!(buchi, @r###"
+        States:
+         "q0" []
+           => {"q1"}
+         "q1" []
+           => {"q2"}
+         "q2" []
+           => {"q3" "q4"}
+         "q3" []
+           => {"q1"}
+         "q4" []
+           => {"q3"}
+        Initial: "q0"
+        Accept:  "q1"
+        "###);
+
         let res = emptiness(buchi);
 
-        assert!(res.is_err());
+        let (stack1, stack2) = res.unwrap_err();
 
-        let stacks = res.unwrap_err();
-        assert_eq!(1, stacks.0.len());
-        assert_eq!(3, stacks.1.len());
+        assert_eq!(1, stack1.len());
+        assert_eq!(3, stack2.len());
     }
 
     #[test]
@@ -131,6 +146,22 @@ mod test_emptiness {
             accepting = [q1]
         };
 
+        insta::assert_snapshot!(buchi, @r###"
+        States:
+         "q0" []
+           => {"q1"}
+         "q1" []
+           => {"q2"}
+         "q2" []
+           => {"q3" "q4"}
+         "q3" []
+           => {}
+         "q4" []
+           => {"q3"}
+        Initial: "q0"
+        Accept:  "q1"
+        "###);
+
         let res = emptiness(buchi);
 
         assert!(res.is_ok());
@@ -146,6 +177,16 @@ mod test_emptiness {
             init = [q0]
             accepting = [q0, q1]
         };
+
+        insta::assert_snapshot!(buchi, @r###"
+        States:
+         "q0" []
+           => {"q1"}
+         "q1" []
+           => {}
+        Initial: "q0"
+        Accept:  "q0" "q1"
+        "###);
 
         let res = emptiness(buchi);
 

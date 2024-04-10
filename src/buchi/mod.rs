@@ -1,6 +1,8 @@
 use std::collections::HashSet;
 use std::fmt;
 
+use itertools::Itertools;
+
 use crate::{
     ltl::{automata::Node, expression::LTLExpression},
     state::State,
@@ -162,6 +164,35 @@ impl<S: State> Buchi<S> {
 
     pub fn get_node_mut(&mut self, name: &S) -> Option<&mut BuchiNode<S>> {
         self.adj_list.iter_mut().find(|adj| &adj.id == name)
+    }
+}
+
+impl<S: fmt::Display + fmt::Debug> fmt::Display for Buchi<S> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        writeln!(f, "States:")?;
+        for state in self
+            .adj_list
+            .iter()
+            .sorted_by_key(|s| format!("{:?}", s.id))
+        {
+            writeln!(f, " {:?} {:?}", state.id, state.labels)?;
+            writeln!(
+                f,
+                "   => {{{:?}}}",
+                state.adj.iter().map(|adj| &adj.id).format(" ")
+            )?;
+        }
+        writeln!(
+            f,
+            "Initial: {:?}",
+            self.init_states.iter().map(|s| &s.id).format(" ")
+        )?;
+        writeln!(
+            f,
+            "Accept:  {:?}",
+            self.accepting_states.iter().map(|s| &s.id).format(" ")
+        )?;
+        Ok(())
     }
 }
 
