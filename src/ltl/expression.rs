@@ -312,28 +312,3 @@ impl<L: fmt::Display> fmt::Display for NnfLtl<L> {
         }
     }
 }
-
-#[cfg(test)]
-mod test_ltl_expression {
-    use super::*;
-
-    // fn lit(s: &str) -> LTLExpression {
-    //     LTLExpression::lit(s)
-    // }
-
-    // #[test]
-    // fn test_put_in_nnf() {
-    //     let expr = !lit("p").U(lit("q"));
-    //     let expected_nnf = (!lit("p")).V(!lit("q"));
-
-    //     assert_eq!(expected_nnf, expr.nnf());
-    // }
-
-    // #[test]
-    // fn test_put_in_nnf_not_not() {
-    //     let expr = !!!lit("p").U(lit("q"));
-    //     let expected_nnf = (!lit("p")).V(!lit("q"));
-
-    //     assert_eq!(expected_nnf, expr.nnf());
-    // }
-}

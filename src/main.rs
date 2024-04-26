@@ -1,4 +1,4 @@
-use mcltl::buchi::ProductBuchi;
+use mcltl::buchi::{BuchiLike, ProductBuchi};
 use mcltl::ltl::expression::LTLExpression;
 use mcltl::verifier::kripke;
 
@@ -71,9 +71,7 @@ fn verify_property(contents: &str, opts: Opts) {
         eprintln!("counterexample:\n");
 
         for (top, _) in cycle.iter() {
-            let id = buchi_program.id(top);
-
-            eprint!("{} → ", id);
+            eprint!("{} → ", buchi_program.fmt_node(top));
         }
     } else {
         println!("\n\x1b[1;32mResult: LTL property hold!\x1b[0m");

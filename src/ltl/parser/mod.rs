@@ -2,7 +2,7 @@ pub mod lexer;
 pub mod parser;
 
 #[cfg(test)]
-mod test_parser {
+mod tests {
     use super::*;
     use crate::ltl::expression::LTLExpression;
 

@@ -1,13 +1,11 @@
-use std::collections::HashSet;
-
-use ahash::AHashSet;
+use itertools::Itertools;
 
 use crate::{
     buchi::{
-        AtomicProperty, Buchi, BuchiNode, BuchiNodeId, ProductBuchi, ProductBuchiNodeId,
+        AtomicProperty, Buchi, BuchiLike, BuchiNode, BuchiNodeId, ProductBuchi, ProductBuchiNodeId,
         ProductBuchiNodeSet,
     },
-    nodes::{NodeArena, NodeMap, NodeSet},
+    nodes::NodeSet,
     state::State,
 };
 
@@ -40,9 +38,9 @@ impl<S: State, AP: AtomicProperty> AcceptingCycle<S, AP> {
     /// Implementation of Algorithm B from ["Memory-Efficient Algorithms for the
     /// Verification of Temporal Properties" by M. Vardi, P. Wolper, M.
     /// Yannakakis](https://link.springer.com/content/pdf/10.1007/bf00121128.pdf)
-    fn find(product_buchi: &Buchi<S, AP>) -> Option<Self> {
+    fn find<B: BuchiLike<S, AP, NodeId = BuchiNodeId<S, AP>>>(product_buchi: &B) -> Option<Self> {
         #[allow(non_snake_case)]
-        for s0 in product_buchi.init_states().iter() {
+        for s0 in product_buchi.init_states() {
             // S1 := {s0}
             let mut S1 = [s0].to_vec();
             // S2 := ∅
@@ -58,13 +56,13 @@ impl<S: State, AP: AtomicProperty> AcceptingCycle<S, AP> {
 
                 // x := top(S1)
 
-                // tracing::debug!(adj=?product_buchi.adj(x), ids=?product_buchi.adj(x).ids().collect_vec(), found=?product_buchi.adj(x).ids().find(|y|
+                // tracing::debug!(adj=?product_buchi.adj(x), ids=?product_buchi.adj_ids(x).collect_vec(), found=?product_buchi.adj_ids(x).find(|y|
                 //     {let res = !M1.contains(*y);
                 //     // tracing::debug!(?y, set=?M1, found=?res);
                 //     res}
                 // ));
                 // if there is a y in succ(x) with M1[h(y)] = 0
-                if let Some(y) = product_buchi.adj(x).ids().find(|y| !M1.contains(*y)) {
+                if let Some(y) = product_buchi.adj_ids(x).find(|y| !M1.contains(*y)) {
                     // tracing::debug!(?x, ?y, "found");
 
                     // let y be the first such member of succ(x)
@@ -81,7 +79,7 @@ impl<S: State, AP: AtomicProperty> AcceptingCycle<S, AP> {
                     assert_eq!(Some(x), S1.pop());
 
                     // if x ∈ F
-                    if product_buchi.accepting_states().contains(x) {
+                    if product_buchi.is_accepting_state(x) {
                         // tracing::debug!(?x, "accepting");
 
                         // push x into S2
@@ -95,13 +93,13 @@ impl<S: State, AP: AtomicProperty> AcceptingCycle<S, AP> {
 
                             // tracing::debug!(?v, ?x, succ=?product_buchi.adj(v), contained=?product_buchi.adj(v).contains_key(x));
                             // if x ∈ succ(v)
-                            if product_buchi.adj(v).contains_key(x) {
+                            if product_buchi.adj_ids(v).contains(&x) {
                                 // tracing::debug!(?S1, ?S2, "found!");
                                 return Some(Self { S1, S2 });
                             }
 
                             // if M2[h(w)] = 1 for all w ∈ succ(v)
-                            match product_buchi.adj(v).ids().find(|w| !M2.contains(*w)) {
+                            match product_buchi.adj_ids(v).find(|w| !M2.contains(*w)) {
                                 None => {
                                     // pop v from S2
                                     assert_eq!(Some(v), S2.pop());
@@ -160,9 +158,6 @@ impl<S: State, T: State, AP: AtomicProperty> ProductAcceptingCycle<S, T, AP> {
     /// Verification of Temporal Properties" by M. Vardi, P. Wolper, M.
     /// Yannakakis](https://link.springer.com/content/pdf/10.1007/bf00121128.pdf)
     fn find(product_buchi: &ProductBuchi<S, T, AP>) -> Option<Self> {
-        // let a = Self::find_impl(product_buchi);
-        // let b = Self::find_impl2(product_buchi);
-        // assert_eq!(a, b);
         Self::find_impl(product_buchi)
     }
     #[inline(never)]
@@ -191,7 +186,7 @@ impl<S: State, T: State, AP: AtomicProperty> ProductAcceptingCycle<S, T, AP> {
 
                 // x := top(S1)
 
-                // tracing::debug!(adj=?product_buchi.adj(x), ids=?product_buchi.adj(x).ids().collect_vec(), found=?product_buchi.adj(x).ids().find(|y|
+                // tracing::debug!(adj=?product_buchi.adj(x), ids=?product_buchi.adj_ids(x).collect_vec(), found=?product_buchi.adj_ids(x).find(|y|
                 //     {let res = !M1.contains(*y);
                 //     // tracing::debug!(?y, set=?M1, found=?res);
                 //     res}
@@ -255,17 +250,12 @@ impl<S: State, T: State, AP: AtomicProperty> ProductAcceptingCycle<S, T, AP> {
             }
         }
 
-        // println!("cap(S1) = {}", S1.capacity());
-        // println!("cap(S2) = {}", S2.capacity());
-        // println!("cap(M1) = {}", M1.capacity());
-        // println!("cap(M2) = {}", M2.capacity());
-
         None
     }
 }
 
 #[cfg(test)]
-mod test_emptiness {
+mod tests {
     use super::*;
 
     use crate::buchi;
@@ -291,7 +281,7 @@ mod test_emptiness {
             accepting = [q1]
         };
 
-        insta::assert_snapshot!(buchi, @r###"
+        insta::assert_snapshot!(buchi.display(), @r###"
         States:
          "q0" []
            =[a]=> "q1"
@@ -333,7 +323,7 @@ mod test_emptiness {
             accepting = [q1]
         };
 
-        insta::assert_snapshot!(buchi, @r###"
+        insta::assert_snapshot!(buchi.display(), @r###"
         States:
          "q0" []
            =[a]=> "q1"
@@ -365,7 +355,7 @@ mod test_emptiness {
             accepting = [q0, q1]
         };
 
-        insta::assert_snapshot!(buchi, @r###"
+        insta::assert_snapshot!(buchi.display(), @r###"
         States:
          "q0" []
            =[a]=> "q1"

@@ -11,6 +11,8 @@ macro_rules! buchi {
         init = [$( $init:ident ),*]
         accepting = [$( $accepting_state:ident ),*]
     ) => {{
+        use $crate::buchi::BuchiLikeMut;
+
         let alphabet = [$($($(Literal::from(stringify!($ltl)),)*)*)*].into_iter().collect();
         let mut graph = Buchi::new(alphabet);
         $(
@@ -40,6 +42,8 @@ macro_rules! gbuchi {
         init = [$( $init:ident ),*]
         $(accepting = [$( $accepting_states:expr ),*])*
     ) => {{
+        use $crate::buchi::BuchiLikeMut;
+
         let alphabet = [$($(Literal::from(stringify!($ltl)),)*)*].into_iter().collect();
         let mut graph = GeneralBuchi::new(alphabet);
         $(
@@ -52,7 +56,7 @@ macro_rules! gbuchi {
         )*
 
         $(graph.add_init_state($init);)*
-        $($(graph.add_accepting_state($accepting_states.into_iter());)*)*
+        $($(graph.add_accepting_state(&$accepting_states.into_iter().collect());)*)*
 
         graph
     }};

@@ -3,7 +3,7 @@ use std::collections::{BTreeSet, HashMap};
 use itertools::Itertools;
 
 use crate::{
-    buchi::{AtomicProperty, AtomicPropertySet, GeneralBuchi, Neighbors},
+    buchi::{AtomicProperty, AtomicPropertySet, BuchiLikeMut as _, GeneralBuchi, Neighbors},
     nodes::NodeSet,
     state::State,
 };
@@ -418,7 +418,7 @@ fn extract_buchi<'a, AP: AtomicProperty + 'a>(
             }
         }
 
-        b.add_accepting_state(accepting_states.iter());
+        b.add_accepting_state(&accepting_states.iter().collect());
     }
 
     b

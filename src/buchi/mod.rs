@@ -1,7 +1,9 @@
 use std::{
+    borrow::Cow,
     collections::{BTreeSet, HashMap},
     fmt,
     hash::Hash,
+    marker::PhantomData,
     sync::{Arc, Mutex},
 };
 
@@ -262,6 +264,91 @@ where
     }
 }
 
+pub trait BuchiLike<S, AP: AtomicProperty> {
+    type NodeId: Copy;
+    type AcceptingState<'a>
+    where
+        Self: 'a;
+
+    fn nodes(&self) -> impl Iterator<Item = Self::NodeId> + Clone + '_;
+    fn init_states(&self) -> impl Iterator<Item = Self::NodeId> + Clone + '_;
+    fn accepting_states<'a>(
+        &'a self,
+    ) -> impl Iterator<Item = Self::AcceptingState<'a>> + Clone + 'a
+    where
+        Self: 'a;
+    fn is_accepting_state(&self, node_id: Self::NodeId) -> bool;
+    fn adj_labels<'a>(
+        &'a self,
+        id: Self::NodeId,
+    ) -> impl Iterator<Item = (Self::NodeId, Cow<'a, Neighbors<AP>>)> + Clone + 'a
+    where
+        AP: 'a;
+    fn adj_ids(&self, id: Self::NodeId) -> impl Iterator<Item = Self::NodeId> + Clone + '_;
+
+    fn fmt_node(&self, id: Self::NodeId) -> String;
+    fn fmt_accepting_state<'a>(&'a self, accepting_states: Self::AcceptingState<'a>) -> String;
+
+    fn display(&self) -> DisplayBuchi<'_, S, AP, Self>
+    where
+        Self: Sized,
+    {
+        DisplayBuchi(self, PhantomData)
+    }
+}
+
+pub trait BuchiLikeMut<S, AP: AtomicProperty>: BuchiLike<S, AP> {
+    fn push(&mut self, state: S) -> Self::NodeId;
+    fn add_accepting_state<'a>(&'a mut self, state: Self::AcceptingState<'a>)
+    where
+        S: 'a,
+        AP: 'a;
+    fn add_init_state(&mut self, node_id: Self::NodeId);
+    fn add_transition(&mut self, from: Self::NodeId, to: Self::NodeId, labels: Neighbors<AP>);
+}
+
+pub struct DisplayBuchi<'a, S, AP: AtomicProperty, B: BuchiLike<S, AP>>(
+    &'a B,
+    PhantomData<(S, AP)>,
+);
+
+impl<S: State, AP: AtomicProperty + fmt::Display, B: BuchiLike<S, AP>> fmt::Display
+    for DisplayBuchi<'_, S, AP, B>
+{
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        writeln!(f, "States:")?;
+        for state in self.0.nodes().sorted_by_key(|s| self.0.fmt_node(*s)) {
+            writeln!(f, " {} []", self.0.fmt_node(state))?;
+            for (adj, adj_labels) in self.0.adj_labels(state) {
+                writeln!(
+                    f,
+                    "   =[{}]=> {}",
+                    match &*adj_labels {
+                        Neighbors::Any => "*".to_string(),
+                        Neighbors::Just(labels) =>
+                            labels.iter().map(|ap| ap.iter().format(",")).join(" | "),
+                    },
+                    self.0.fmt_node(adj)
+                )?;
+            }
+        }
+        writeln!(
+            f,
+            "Initial: {}",
+            self.0.init_states().map(|s| self.0.fmt_node(s)).format(" ")
+        )?;
+        writeln!(
+            f,
+            "Accept:  [{}]",
+            self.0
+                .accepting_states()
+                .map(|s| self.0.fmt_accepting_state(s))
+                .format(", ")
+        )?;
+        Ok(())
+    }
+}
+
 ///  generalized Büchi automaton (GBA) automaton.
 /// The difference with the Büchi automaton is its accepting condition, i.e., a set of sets of states.
 #[derive(Debug, Clone, Eq, PartialEq)]
@@ -272,38 +359,83 @@ pub struct GeneralBuchi<S, AP: AtomicProperty> {
     init_states: NodeSet<BuchiNode<S, AP>>,
 }
 
-impl<S: State, AP: AtomicProperty + fmt::Display> fmt::Display for GeneralBuchi<S, AP> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        writeln!(f, "States:")?;
-        for state in self.nodes.iter().sorted_by_key(|s| format!("{:?}", s.id)) {
-            writeln!(f, " {:?} []", state.id)?;
-            for (adj, adj_labels) in state.adj.iter() {
-                writeln!(
-                    f,
-                    "   =[{}]=> {:?}",
-                    match adj_labels {
-                        Neighbors::Any => "*".to_string(),
-                        Neighbors::Just(labels) =>
-                            labels.iter().map(|ap| ap.iter().format(",")).join(" | "),
-                    },
-                    self.id(adj)
-                )?;
-            }
-        }
-        writeln!(
-            f,
-            "Initial: {:?}",
-            self.init_states.iter().map(|s| self.id(s)).format(" ")
-        )?;
-        writeln!(
-            f,
-            "Accept:  [{}]",
-            self.accepting_states
-                .iter()
-                .map(|s| format!("{{{:?}}}", s.iter().map(|s| self.id(s)).format(" ")))
-                .format(", ")
-        )?;
-        Ok(())
+impl<S: State, AP: AtomicProperty> BuchiLike<S, AP> for GeneralBuchi<S, AP> {
+    type NodeId = BuchiNodeId<S, AP>;
+    type AcceptingState<'a> = &'a NodeSet<BuchiNode<S, AP>> where S: 'a, AP: 'a;
+
+    fn nodes(&self) -> impl Iterator<Item = Self::NodeId> + Clone + '_ {
+        self.nodes.ids()
+    }
+
+    fn init_states(&self) -> impl Iterator<Item = Self::NodeId> + Clone + '_ {
+        self.init_states.iter()
+    }
+
+    fn accepting_states<'a>(&'a self) -> impl Iterator<Item = Self::AcceptingState<'a>> + Clone + 'a
+    where
+        Self: 'a,
+    {
+        self.accepting_states.iter()
+    }
+
+    fn is_accepting_state(&self, node_id: Self::NodeId) -> bool {
+        self.accepting_states.iter().all(|s| s.contains(node_id))
+    }
+
+    fn adj_labels<'a>(
+        &'a self,
+        id: Self::NodeId,
+    ) -> impl Iterator<Item = (Self::NodeId, Cow<'a, Neighbors<AP>>)> + Clone + 'a
+    where
+        AP: 'a,
+    {
+        self.nodes[id]
+            .adj
+            .iter()
+            .map(|(id, n)| (id, Cow::Borrowed(n)))
+    }
+
+    fn adj_ids(&self, id: Self::NodeId) -> impl Iterator<Item = Self::NodeId> + Clone + '_ {
+        self.nodes[id].adj.ids()
+    }
+
+    fn fmt_node(&self, id: Self::NodeId) -> String {
+        format!("{:?}", self.id(id))
+    }
+
+    fn fmt_accepting_state<'a>(&'a self, accepting_state: Self::AcceptingState<'a>) -> String {
+        format!(
+            "{{{:?}}}",
+            accepting_state.iter().map(|s| self.id(s)).format(" ")
+        )
+    }
+}
+
+impl<S: State, AP: AtomicProperty> BuchiLikeMut<S, AP> for GeneralBuchi<S, AP> {
+    fn push(&mut self, state: S) -> Self::NodeId {
+        self.get_node(&state)
+            .unwrap_or_else(|| self.nodes.push(BuchiNode::new(state)))
+    }
+
+    fn add_accepting_state<'a>(&'a mut self, ids: Self::AcceptingState<'a>)
+    where
+        S: 'a,
+        AP: 'a,
+    {
+        self.accepting_states.push(ids.clone());
+    }
+
+    fn add_init_state(&mut self, node_id: BuchiNodeId<S, AP>) {
+        self.init_states.insert(node_id);
+    }
+
+    fn add_transition(
+        &mut self,
+        from: BuchiNodeId<S, AP>,
+        to: BuchiNodeId<S, AP>,
+        labels: Neighbors<AP>,
+    ) {
+        self.nodes[from].adj.insert(to, labels);
     }
 }
 
@@ -317,11 +449,6 @@ impl<S: State, AP: AtomicProperty> GeneralBuchi<S, AP> {
         }
     }
 
-    pub fn push(&mut self, state: S) -> BuchiNodeId<S, AP> {
-        self.get_node(&state)
-            .unwrap_or_else(|| self.nodes.push(BuchiNode::new(state)))
-    }
-
     pub fn get_node(&self, name: &S) -> Option<BuchiNodeId<S, AP>> {
         self.nodes
             .iter_with_ids()
@@ -330,43 +457,6 @@ impl<S: State, AP: AtomicProperty> GeneralBuchi<S, AP> {
 
     pub fn id(&self, node_id: BuchiNodeId<S, AP>) -> &S {
         &self.nodes[node_id].id
-    }
-
-    pub fn nodes(&self) -> &NodeArena<BuchiNode<S, AP>> {
-        &self.nodes
-    }
-
-    pub fn init_states(&self) -> &NodeSet<BuchiNode<S, AP>> {
-        &self.init_states
-    }
-
-    pub fn accepting_states(&self) -> &[NodeSet<BuchiNode<S, AP>>] {
-        &self.accepting_states
-    }
-
-    pub fn is_accepting_state(&self, node_id: BuchiNodeId<S, AP>) -> bool {
-        self.accepting_states.iter().all(|s| s.contains(node_id))
-    }
-
-    pub fn adj(&self, node: BuchiNodeId<S, AP>) -> &SmartNodeMap<BuchiNode<S, AP>, Neighbors<AP>> {
-        &self.nodes[node].adj
-    }
-
-    pub fn add_accepting_state(&mut self, node_ids: impl IntoIterator<Item = BuchiNodeId<S, AP>>) {
-        self.accepting_states.push(node_ids.into_iter().collect());
-    }
-
-    pub fn add_init_state(&mut self, node_id: BuchiNodeId<S, AP>) {
-        self.init_states.insert(node_id);
-    }
-
-    pub fn add_transition(
-        &mut self,
-        from: BuchiNodeId<S, AP>,
-        to: BuchiNodeId<S, AP>,
-        labels: Neighbors<AP>,
-    ) {
-        self.nodes[from].adj.insert(to, labels);
     }
 
     pub fn alphabet(&self) -> &Alphabet<AP> {
@@ -395,6 +485,86 @@ pub struct Buchi<S, AP: AtomicProperty> {
     init_states: SmartNodeSet<BuchiNode<S, AP>>,
 }
 
+impl<S: State, AP: AtomicProperty> BuchiLike<S, AP> for Buchi<S, AP> {
+    type NodeId = BuchiNodeId<S, AP>;
+    type AcceptingState<'a> = BuchiNodeId<S, AP> where S: 'a, AP: 'a;
+
+    fn nodes(&self) -> impl Iterator<Item = Self::NodeId> + Clone + '_ {
+        self.nodes.ids()
+    }
+
+    fn init_states(&self) -> impl Iterator<Item = Self::NodeId> + Clone + '_ {
+        self.init_states.iter()
+    }
+
+    fn accepting_states<'a>(&'a self) -> impl Iterator<Item = Self::AcceptingState<'a>> + Clone + 'a
+    where
+        Self: 'a,
+    {
+        self.accepting_states.iter()
+    }
+
+    fn is_accepting_state(&self, node_id: Self::NodeId) -> bool {
+        self.accepting_states.contains(node_id)
+    }
+
+    fn adj_labels<'a>(
+        &'a self,
+        id: Self::NodeId,
+    ) -> impl Iterator<Item = (Self::NodeId, Cow<'a, Neighbors<AP>>)> + Clone + 'a
+    where
+        AP: 'a,
+    {
+        self.nodes[id]
+            .adj
+            .iter()
+            .map(|(id, n)| (id, Cow::Borrowed(n)))
+    }
+
+    fn adj_ids(&self, id: Self::NodeId) -> impl Iterator<Item = Self::NodeId> + Clone + '_ {
+        self.nodes[id].adj.ids()
+    }
+
+    fn fmt_node(&self, id: Self::NodeId) -> String {
+        format!("{:?}", self.id(id))
+    }
+
+    fn fmt_accepting_state<'a>(&'a self, accepting_state: Self::AcceptingState<'a>) -> String {
+        self.fmt_node(accepting_state)
+    }
+}
+
+impl<S: State, AP: AtomicProperty> BuchiLikeMut<S, AP> for Buchi<S, AP> {
+    fn push(&mut self, state: S) -> Self::NodeId {
+        self.get_node(&state).unwrap_or_else(|| {
+            let id = self.nodes.push(BuchiNode::new(state.clone()));
+            self.mapping.insert(state, id);
+            id
+        })
+    }
+
+    fn add_accepting_state<'a>(&'a mut self, node_id: Self::AcceptingState<'a>)
+    where
+        S: 'a,
+        AP: 'a,
+    {
+        self.accepting_states.insert(node_id);
+    }
+
+    fn add_init_state(&mut self, node_id: BuchiNodeId<S, AP>) {
+        self.init_states.insert(node_id);
+    }
+
+    fn add_transition(
+        &mut self,
+        from: BuchiNodeId<S, AP>,
+        to: BuchiNodeId<S, AP>,
+        labels: Neighbors<AP>,
+    ) {
+        self.nodes[from].adj.insert(to, labels);
+    }
+}
+
 impl<S: State, AP: AtomicProperty> Buchi<S, AP> {
     pub fn new(alphabet: Alphabet<AP>) -> Self {
         Self {
@@ -406,67 +576,22 @@ impl<S: State, AP: AtomicProperty> Buchi<S, AP> {
         }
     }
 
-    pub fn push(&mut self, state: S) -> BuchiNodeId<S, AP> {
-        self.get_node(&state).unwrap_or_else(|| {
-            let id = self.nodes.push(BuchiNode::new(state.clone()));
-            self.mapping.insert(state, id);
-            id
-        })
-    }
-
     pub fn get_node(&self, name: &S) -> Option<BuchiNodeId<S, AP>> {
         self.mapping.get(name).copied()
-        // self.nodes
-        //     .iter_with_ids()
-        //     .find_map(|(id, adj)| if &adj.id == name { Some(id) } else { None })
     }
 
     pub fn id(&self, node_id: BuchiNodeId<S, AP>) -> &S {
         &self.nodes[node_id].id
     }
 
-    pub fn nodes(&self) -> &NodeArena<BuchiNode<S, AP>> {
-        &self.nodes
-    }
-
-    pub fn init_states(&self) -> &SmartNodeSet<BuchiNode<S, AP>> {
-        &self.init_states
-    }
-
-    pub fn accepting_states(&self) -> &SmartNodeSet<BuchiNode<S, AP>> {
-        &self.accepting_states
-    }
-
-    pub fn adj(&self, node: BuchiNodeId<S, AP>) -> &SmartNodeMap<BuchiNode<S, AP>, Neighbors<AP>> {
-        &self.nodes[node].adj
-    }
-
-    pub fn add_accepting_state(&mut self, node_id: BuchiNodeId<S, AP>) {
-        self.accepting_states.insert(node_id);
-    }
-
-    pub fn add_init_state(&mut self, node_id: BuchiNodeId<S, AP>) {
-        self.init_states.insert(node_id);
-    }
-
-    pub fn add_transition(
-        &mut self,
-        from: BuchiNodeId<S, AP>,
-        to: BuchiNodeId<S, AP>,
-        labels: Neighbors<AP>,
-    ) {
-        self.nodes[from].adj.insert(to, labels);
-    }
-
     pub fn add_necessary_self_loops(&mut self) {
-        for state in self.nodes().ids() {
-            if self.adj(state).is_empty() {
+        for state in self.nodes().collect_vec() {
+            if self.adj_ids(state).next().is_none() {
                 let neighbors = self
                     .nodes()
-                    .ids()
-                    .flat_map(|id| self.adj(id).iter())
+                    .flat_map(|id| self.adj_labels(id))
                     .filter_map(|(id, adj)| if id == state { Some(adj) } else { None })
-                    .fold(Neighbors::none(), |a, b| a.union(b));
+                    .fold(Neighbors::none(), |a, b| a.union(&*b));
 
                 // self.add_transition(state, state, Neighbors::any(self.alphabet()));
                 self.add_transition(state, state, neighbors);
@@ -476,7 +601,7 @@ impl<S: State, AP: AtomicProperty> Buchi<S, AP> {
 
     pub fn pruned(&self) -> Buchi<S, AP> {
         let mut pruned: Buchi<S, AP> = Buchi::new(self.alphabet().clone());
-        let mut stack = self.init_states().iter().collect_vec();
+        let mut stack = self.init_states().collect_vec();
         let mut visited = NodeSet::default();
         let mut mapping: HashMap<BuchiNodeId<S, AP>, BuchiNodeId<S, AP>> = HashMap::default();
 
@@ -487,22 +612,22 @@ impl<S: State, AP: AtomicProperty> Buchi<S, AP> {
                 .entry(state)
                 .or_insert_with(|| pruned.push(self.id(state).clone()));
 
-            for (adj, labels) in self.adj(state).iter() {
+            for (adj, labels) in self.adj_labels(state) {
                 let new_adj = *mapping
                     .entry(adj)
                     .or_insert_with(|| pruned.push(self.id(adj).clone()));
-                pruned.add_transition(new_state, new_adj, labels.clone());
+                pruned.add_transition(new_state, new_adj, labels.into_owned());
                 if !visited.insert(adj) {
                     stack.push(adj);
                 }
             }
         }
 
-        for state in self.init_states().iter() {
+        for state in self.init_states() {
             pruned.add_init_state(mapping[&state]);
         }
 
-        for state in self.accepting_states().iter() {
+        for state in self.accepting_states() {
             if let Some(id) = mapping.get(&state) {
                 pruned.add_accepting_state(*id);
             }
@@ -576,78 +701,13 @@ impl<S, T: State, AP: AtomicProperty> ProductBuchiNodeSet<S, T, AP> {
     }
 }
 
-impl<'a, 'b, S, T, AP> ProductBuchi<'a, 'b, S, T, AP>
-where
-    S: State,
-    T: State,
-    AP: AtomicProperty,
+impl<'s, 't, S: State, T: State, AP: AtomicProperty> BuchiLike<(S, T), AP>
+    for ProductBuchi<'s, 't, S, T, AP>
 {
-    pub fn new(a: &'a Buchi<S, AP>, b: &'b Buchi<T, AP>) -> Self {
-        Self {
-            a,
-            b,
-            adj_ids_cache: Default::default(),
-        }
-    }
+    type NodeId = ProductBuchiNodeId<S, T, AP>;
+    type AcceptingState<'a> = ProductBuchiNodeId<S, T, AP> where Self:'a;
 
-    #[inline(never)]
-    pub fn init_states(&self) -> impl Iterator<Item = ProductBuchiNodeId<S, T, AP>> + '_ {
-        Itertools::cartesian_product(self.a.init_states().iter(), self.b.init_states().iter())
-    }
-
-    #[inline(never)]
-    pub fn accepting_states(&self) -> impl Iterator<Item = ProductBuchiNodeId<S, T, AP>> + '_ {
-        Itertools::cartesian_product(
-            self.a.accepting_states().iter(),
-            self.b.accepting_states().iter(),
-        )
-    }
-
-    pub fn adj(
-        &self,
-        (a, b): ProductBuchiNodeId<S, T, AP>,
-    ) -> impl Iterator<Item = (ProductBuchiNodeId<S, T, AP>, Neighbors<AP>)> + '_ {
-        Itertools::cartesian_product(self.a.adj(a).iter(), self.b.adj(b).iter()).filter_map(
-            move |((a, a_labels), (b, b_labels))| {
-                let dst = (a, b);
-                let dst_labels = a_labels.intersection(b_labels);
-                if dst_labels.is_empty() {
-                    None
-                } else {
-                    Some((dst, dst_labels))
-                }
-            },
-        )
-    }
-
-    pub fn adj_ids(
-        &self,
-        (a, b): ProductBuchiNodeId<S, T, AP>,
-    ) -> impl Iterator<Item = ProductBuchiNodeId<S, T, AP>> {
-        self.adj_ids_cache
-            .lock()
-            .unwrap()
-            .entry((a, b))
-            .or_insert_with(|| {
-                Itertools::cartesian_product(self.a.adj(a).iter(), self.b.adj(b).iter())
-                    .filter_map(move |((a, a_labels), (b, b_labels))| {
-                        let dst = (a, b);
-                        // DO NOT DELETE THIS MAKEs IT FASTER!@!!!!!
-                        // let dst_labels = a_labels.intersection(b_labels);
-                        // assert_eq!(dst_labels.is_empty(), a_labels.is_disjoint(b_labels));
-                        if a_labels.is_disjoint(b_labels) {
-                            None
-                        } else {
-                            Some(dst)
-                        }
-                    })
-                    .collect()
-            })
-            .clone()
-            .into_iter()
-    }
-
-    pub fn nodes(&self) -> AHashSet<ProductBuchiNodeId<S, T, AP>> {
+    fn nodes(&self) -> impl Iterator<Item = Self::NodeId> + Clone + '_ {
         let mut nodes = AHashSet::default();
 
         let mut queue = self.init_states().collect_vec();
@@ -661,45 +721,86 @@ where
             }
         }
 
-        nodes
+        // HACK: This is stupid, but AHashSet::into_iter, does not impl Clone
+        nodes.into_iter().collect_vec().into_iter()
+    }
+
+    fn init_states(&self) -> impl Iterator<Item = Self::NodeId> + Clone + '_ {
+        Itertools::cartesian_product(self.a.init_states(), self.b.init_states())
+    }
+
+    fn accepting_states<'a>(&'a self) -> impl Iterator<Item = Self::AcceptingState<'a>> + Clone + 'a
+    where
+        Self: 'a,
+    {
+        Itertools::cartesian_product(self.a.accepting_states(), self.b.accepting_states())
+    }
+
+    fn is_accepting_state(&self, node_id: Self::NodeId) -> bool {
+        self.a.is_accepting_state(node_id.0) && self.b.is_accepting_state(node_id.1)
+    }
+
+    fn adj_labels<'a>(
+        &'a self,
+        (a, b): Self::NodeId,
+    ) -> impl Iterator<Item = (Self::NodeId, Cow<'a, Neighbors<AP>>)> + Clone + 'a
+    where
+        AP: 'a,
+    {
+        Itertools::cartesian_product(self.a.adj_labels(a), self.b.adj_labels(b)).filter_map(
+            move |((a, a_labels), (b, b_labels))| {
+                let dst = (a, b);
+                let dst_labels = a_labels.intersection(&*b_labels);
+                if dst_labels.is_empty() {
+                    None
+                } else {
+                    Some((dst, Cow::Owned(dst_labels)))
+                }
+            },
+        )
+    }
+
+    fn adj_ids(&self, (a, b): Self::NodeId) -> impl Iterator<Item = Self::NodeId> + Clone + '_ {
+        self.adj_ids_cache
+            .lock()
+            .unwrap()
+            .entry((a, b))
+            .or_insert_with(|| {
+                Itertools::cartesian_product(self.a.adj_labels(a), self.b.adj_labels(b))
+                    .filter_map(move |((a, a_labels), (b, b_labels))| {
+                        if a_labels.is_disjoint(&*b_labels) {
+                            None
+                        } else {
+                            Some((a, b))
+                        }
+                    })
+                    .collect()
+            })
+            .clone()
+            .into_iter()
+    }
+
+    fn fmt_node(&self, id: Self::NodeId) -> String {
+        format!("({:?}, {:?})", self.a.id(id.0), self.b.id(id.1))
+    }
+
+    fn fmt_accepting_state<'a>(&'a self, accepting_state: Self::AcceptingState<'a>) -> String {
+        self.fmt_node(accepting_state)
     }
 }
 
-impl<S: State, T: State, AP: AtomicProperty + fmt::Display> fmt::Display
-    for ProductBuchi<'_, '_, S, T, AP>
+impl<'a, 'b, S, T, AP> ProductBuchi<'a, 'b, S, T, AP>
+where
+    S: State,
+    T: State,
+    AP: AtomicProperty,
 {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let fmt = |(a, b): ProductBuchiNodeId<S, T, AP>| {
-            format!("({:?}, {:?})", self.a.id(a), self.b.id(b))
-        };
-
-        writeln!(f, "States:")?;
-        for &state in self.nodes().iter().sorted_by_key(|s| fmt(**s)) {
-            writeln!(f, " {} []", fmt(state))?;
-            for (adj, labels) in self.adj(state) {
-                writeln!(
-                    f,
-                    "   =[{}]=> {}",
-                    match labels {
-                        Neighbors::Any => "*".to_string(),
-                        Neighbors::Just(labels) =>
-                            labels.iter().map(|ap| ap.iter().format(",")).join(" | "),
-                    },
-                    fmt(adj)
-                )?;
-            }
+    pub fn new(a: &'a Buchi<S, AP>, b: &'b Buchi<T, AP>) -> Self {
+        Self {
+            a,
+            b,
+            adj_ids_cache: Default::default(),
         }
-        writeln!(f, "Initial: {}", self.init_states().map(fmt).format(" "))?;
-        writeln!(
-            f,
-            "Accept:  [{}]",
-            self.accepting_states()
-                .map(fmt)
-                .sorted()
-                .dedup()
-                .format(", ")
-        )?;
-        Ok(())
     }
 }
 
@@ -708,47 +809,6 @@ impl<S: State, AP: AtomicProperty> std::ops::Index<BuchiNodeId<S, AP>> for Buchi
 
     fn index(&self, index: BuchiNodeId<S, AP>) -> &Self::Output {
         &self.nodes[index]
-    }
-}
-
-impl<S: State, AP: AtomicProperty + fmt::Display> fmt::Display for Buchi<S, AP> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        writeln!(f, "States:")?;
-        for state in self
-            .nodes
-            .ids()
-            .sorted_by_key(|s| format!("{:?}", self.id(*s)))
-        {
-            writeln!(f, " {:?} []", self.id(state))?;
-            for (adj, labels) in self.adj(state).iter() {
-                writeln!(
-                    f,
-                    "   =[{}]=> {:?}",
-                    match labels {
-                        Neighbors::Any => "*".to_string(),
-                        Neighbors::Just(labels) =>
-                            labels.iter().map(|ap| ap.iter().format(",")).join(" | "),
-                    },
-                    self.id(adj)
-                )?;
-            }
-        }
-        writeln!(
-            f,
-            "Initial: {:?}",
-            self.init_states.iter().map(|s| self.id(s)).format(" ")
-        )?;
-        writeln!(
-            f,
-            "Accept:  [{}]",
-            self.accepting_states
-                .iter()
-                .map(|s| format!("{:?}", self.id(s)))
-                .sorted()
-                .dedup()
-                .format(", ")
-        )?;
-        Ok(())
     }
 }
 
@@ -767,35 +827,36 @@ impl<S: State, AP: AtomicProperty> GeneralBuchi<S, AP> {
         if self.accepting_states.is_empty() {
             // tracing::debug!(%self, "no accepting states found, adding all states as accepting states");
             let mut gb = self.clone();
-            gb.add_accepting_state(gb.nodes().ids());
+            let accepting_states = gb.nodes().collect();
+            gb.add_accepting_state(&accepting_states);
             return gb.to_buchi();
         }
         // let F = {F0,...,Fk-1}
 
         // Q' = Q × 0..k
-        for (k, _) in self.accepting_states().iter().enumerate() {
-            for n in self.nodes().ids() {
+        for (k, _) in self.accepting_states().enumerate() {
+            for n in self.nodes() {
                 ba.push((self.id(n).clone(), k));
             }
         }
 
         // Q'0 = Q0 × {0} = { (q0,0) | q0 ∈ Q0 }
-        for n in self.init_states().iter() {
+        for n in self.init_states() {
             let init = ba.push((self.id(n).clone(), 0));
             ba.add_init_state(init);
         }
 
         // F' = F1 × {0} = { (qF,0) | qF ∈ F1 }
-        for f in self.accepting_states()[0].iter() {
+        for f in self.accepting_states().next().unwrap().iter() {
             let accepting = ba.push((self.id(f).clone(), 0));
             ba.add_accepting_state(accepting);
         }
 
         // ∆'((q, i), A) = if q ∈ Fi then { (q', i+1) | q' ∈ ∆(q, A) } else { (q', i) | q' ∈ ∆(q, A) }
-        for (i, f) in self.accepting_states().iter().enumerate() {
-            for n in self.nodes().ids() {
-                for (adj, adj_labels) in self.adj(n).iter() {
-                    let j = if f.iter().any(|n| self.id(n) == self.id(n)) {
+        for (i, f) in self.accepting_states().enumerate() {
+            for n in self.nodes() {
+                for (adj, adj_labels) in self.adj_labels(n) {
+                    let j = if f.iter().any(|m| self.id(n) == self.id(m)) {
                         (i + 1) % self.accepting_states.len()
                     } else {
                         i
@@ -804,7 +865,7 @@ impl<S: State, AP: AtomicProperty> GeneralBuchi<S, AP> {
                     ba.add_transition(
                         ba.get_node(&(self.id(n).clone(), i)).unwrap(),
                         new,
-                        adj_labels.clone(),
+                        adj_labels.into_owned(),
                     );
                 }
             }

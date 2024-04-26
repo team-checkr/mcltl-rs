@@ -1,7 +1,7 @@
 use core::fmt;
 
 use crate::{
-    buchi::{AtomicProperty, AtomicPropertySet, Buchi, GeneralBuchi, Neighbors},
+    buchi::{AtomicProperty, AtomicPropertySet, Buchi, BuchiLike, GeneralBuchi, Neighbors},
     state::State,
 };
 use dot;
@@ -77,10 +77,7 @@ impl<'a, S: State, AP: AtomicProperty + fmt::Display> dot::Labeller<'a, Node, Ed
     }
 
     fn node_shape<'b>(&'b self, n: &Node) -> Option<dot::LabelText<'b>> {
-        let is_an_accepting_state = self
-            .accepting_states()
-            .iter()
-            .any(|bns| self.id(bns).name() == *n);
+        let is_an_accepting_state = self.accepting_states().any(|bns| self.fmt_node(bns) == *n);
 
         if is_an_accepting_state {
             Some(dot::LabelText::LabelStr("doublecircle".into()))
@@ -96,7 +93,9 @@ impl<'a, S: State, AP: AtomicProperty + fmt::Display> dot::GraphWalk<'a, Node, E
     for Buchi<S, AP>
 {
     fn nodes(&self) -> dot::Nodes<'a, Node> {
-        let mut adjs: Vec<Node> = self.nodes().ids().map(|adj| self.id(adj).name()).collect();
+        let mut adjs: Vec<Node> = BuchiLike::nodes(self)
+            .map(|adj| self.fmt_node(adj))
+            .collect();
         adjs.push(Q_INIT.to_string());
 
         adjs.into()
@@ -105,15 +104,14 @@ impl<'a, S: State, AP: AtomicProperty + fmt::Display> dot::GraphWalk<'a, Node, E
     fn edges(&'a self) -> dot::Edges<'a, Edge<'a, AP>> {
         let mut edges = self
             .init_states()
-            .iter()
-            .map(|id| (Q_INIT.to_string(), [].into(), self.id(id).name()))
+            .map(|id| (Q_INIT.to_string(), [].into(), self.fmt_node(id)))
             .collect_vec();
-        for source in self.nodes().ids() {
-            for (target, target_labels) in self.adj(source).iter() {
+        for source in BuchiLike::nodes(self) {
+            for (target, target_labels) in self.adj_labels(source) {
                 edges.push((
-                    self.id(source).name(),
-                    target_labels.clone(),
-                    self.id(target).name(),
+                    self.fmt_node(source),
+                    target_labels.into_owned(),
+                    self.fmt_node(target),
                 ));
             }
         }
@@ -183,7 +181,7 @@ impl<'a, S: State, AP: AtomicProperty + fmt::Display> dot::Labeller<'a, Node, Ed
 
     fn node_shape<'b>(&'b self, n: &Node) -> Option<dot::LabelText<'b>> {
         let is_an_accepting_state =
-            if let Some(node) = self.nodes().ids().find(|node| self.id(*node).name() == *n) {
+            if let Some(node) = BuchiLike::nodes(self).find(|node| self.fmt_node(*node) == *n) {
                 self.is_accepting_state(node)
             } else {
                 false
@@ -203,7 +201,9 @@ impl<'a, S: State, AP: AtomicProperty + fmt::Display> dot::GraphWalk<'a, Node, E
     for GeneralBuchi<S, AP>
 {
     fn nodes(&self) -> dot::Nodes<'a, Node> {
-        let mut adjs: Vec<Node> = self.nodes().ids().map(|adj| self.id(adj).name()).collect();
+        let mut adjs: Vec<Node> = BuchiLike::nodes(self)
+            .map(|adj| self.fmt_node(adj))
+            .collect();
         adjs.push(Q_INIT.to_string());
 
         adjs.into()
@@ -212,15 +212,14 @@ impl<'a, S: State, AP: AtomicProperty + fmt::Display> dot::GraphWalk<'a, Node, E
     fn edges(&'a self) -> dot::Edges<'a, Edge<'a, AP>> {
         let mut edges = self
             .init_states()
-            .iter()
-            .map(|id| (Q_INIT.to_string(), [].into(), self.id(id).name()))
+            .map(|id| (Q_INIT.to_string(), [].into(), self.fmt_node(id)))
             .collect_vec();
-        for source in self.nodes().ids() {
-            for (target, target_labels) in self.adj(source).iter() {
+        for source in BuchiLike::nodes(self) {
+            for (target, target_labels) in self.adj_labels(source) {
                 edges.push((
-                    self.id(source).name(),
-                    target_labels.clone(),
-                    self.id(target).name(),
+                    self.fmt_node(source),
+                    target_labels.into_owned(),
+                    self.fmt_node(target),
                 ));
             }
         }

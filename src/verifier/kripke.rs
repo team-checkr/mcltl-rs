@@ -5,7 +5,7 @@ use itertools::Itertools;
 use plex::{lexer, parser};
 
 use crate::{
-    buchi::{Alphabet, AtomicProperty, Buchi},
+    buchi::{Alphabet, AtomicProperty, Buchi, BuchiLikeMut as _},
     ltl::expression::Literal,
     state::State,
 };
@@ -403,7 +403,9 @@ mod parser {
 }
 
 #[cfg(test)]
-mod test_kripke {
+mod tests {
+
+    use crate::buchi::BuchiLike as _;
 
     use super::*;
 
@@ -424,9 +426,9 @@ mod test_kripke {
 
         let buchi = kripke.to_buchi();
 
-        assert_eq!(4, buchi.accepting_states().len());
-        assert_eq!(1, buchi.init_states().len());
-        assert_eq!(4, buchi.nodes().len());
+        assert_eq!(4, buchi.accepting_states().count());
+        assert_eq!(1, buchi.init_states().count());
+        assert_eq!(4, buchi.nodes().count());
     }
 
     #[test]
@@ -445,9 +447,9 @@ mod test_kripke {
 
         let buchi = kripke.to_buchi();
 
-        assert_eq!(4, buchi.accepting_states().len());
-        assert_eq!(1, buchi.init_states().len());
-        assert_eq!(4, buchi.nodes().len());
+        assert_eq!(4, buchi.accepting_states().count());
+        assert_eq!(1, buchi.init_states().count());
+        assert_eq!(4, buchi.nodes().count());
     }
 
     #[test]

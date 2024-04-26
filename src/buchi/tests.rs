@@ -12,7 +12,7 @@ fn it_should_extract_buchi_from_nodeset() {
 
     let gbuchi = ltl_expr.gba();
 
-    insta::assert_snapshot!(gbuchi, @r###"
+    insta::assert_snapshot!(gbuchi.display(), @r###"
         States:
          A2 []
            =[p | p,q]=> A2
@@ -33,7 +33,7 @@ fn it_should_convert_gba_construct_from_ltl_into_ba() {
 
     let gbuchi = ltl_expr.gba();
 
-    insta::assert_snapshot!(gbuchi, @r###"
+    insta::assert_snapshot!(gbuchi.display(), @r###"
         States:
          A11 []
            =[p,q | q]=> A16
@@ -64,57 +64,57 @@ fn it_should_convert_gba_construct_from_ltl_into_ba() {
 
     let buchi = gbuchi.to_buchi();
 
-    insta::assert_snapshot!(buchi, @r###"
-        States:
-         (A11, 0) []
-           =[p,q | q]=> (A16, 1)
-           =[p,q | q]=> (A23, 1)
-         (A11, 1) []
-           =[p,q | q]=> (A16, 0)
-           =[p,q | q]=> (A23, 0)
-         (A16, 0) []
-           =[p,q | q]=> (A16, 1)
-           =[p,q | q]=> (A23, 1)
-         (A16, 1) []
-           =[p,q | q]=> (A16, 0)
-           =[p,q | q]=> (A23, 0)
-         (A23, 0) []
-           =[p,q]=> (A26, 1)
-         (A23, 1) []
-           =[p,q]=> (A26, 0)
-         (A26, 0) []
-           =[p,q | q]=> (A26, 1)
-         (A26, 1) []
-           =[p,q | q]=> (A26, 0)
-         (A33, 0) []
-           =[p | p,q]=> (A4, 1)
-           =[p | p,q]=> (A33, 1)
-           =[p | p,q]=> (A40, 1)
-         (A33, 1) []
-           =[p | p,q]=> (A4, 0)
-           =[p | p,q]=> (A33, 0)
-           =[p | p,q]=> (A40, 0)
-         (A4, 0) []
-           =[ | p | p,q | q]=> (A4, 1)
-           =[ | p | p,q | q]=> (A11, 1)
-           =[ | p | p,q | q]=> (A33, 1)
-           =[ | p | p,q | q]=> (A45, 1)
-         (A4, 1) []
-           =[ | p | p,q | q]=> (A4, 0)
-           =[ | p | p,q | q]=> (A11, 0)
-           =[ | p | p,q | q]=> (A33, 0)
-           =[ | p | p,q | q]=> (A45, 0)
-         (A40, 0) []
-           =[p,q | q]=> (A26, 1)
-         (A40, 1) []
-           =[p,q | q]=> (A26, 0)
-         (A45, 0) []
-           =[p,q]=> (A26, 1)
-         (A45, 1) []
-           =[p,q]=> (A26, 0)
-        Initial: (A4, 0) (A33, 0) (A40, 0)
-        Accept:  [(A23, 0), (A26, 0), (A33, 0), (A40, 0), (A45, 0)]
-        "###);
+    insta::assert_snapshot!(buchi.display(), @r###"
+    States:
+     (A11, 0) []
+       =[p,q | q]=> (A16, 0)
+       =[p,q | q]=> (A23, 0)
+     (A11, 1) []
+       =[p,q | q]=> (A16, 0)
+       =[p,q | q]=> (A23, 0)
+     (A16, 0) []
+       =[p,q | q]=> (A16, 0)
+       =[p,q | q]=> (A23, 0)
+     (A16, 1) []
+       =[p,q | q]=> (A16, 0)
+       =[p,q | q]=> (A23, 0)
+     (A23, 0) []
+       =[p,q]=> (A26, 1)
+     (A23, 1) []
+       =[p,q]=> (A26, 0)
+     (A26, 0) []
+       =[p,q | q]=> (A26, 1)
+     (A26, 1) []
+       =[p,q | q]=> (A26, 0)
+     (A33, 0) []
+       =[p | p,q]=> (A4, 1)
+       =[p | p,q]=> (A33, 1)
+       =[p | p,q]=> (A40, 1)
+     (A33, 1) []
+       =[p | p,q]=> (A4, 1)
+       =[p | p,q]=> (A33, 1)
+       =[p | p,q]=> (A40, 1)
+     (A4, 0) []
+       =[ | p | p,q | q]=> (A4, 0)
+       =[ | p | p,q | q]=> (A11, 0)
+       =[ | p | p,q | q]=> (A33, 0)
+       =[ | p | p,q | q]=> (A45, 0)
+     (A4, 1) []
+       =[ | p | p,q | q]=> (A4, 1)
+       =[ | p | p,q | q]=> (A11, 1)
+       =[ | p | p,q | q]=> (A33, 1)
+       =[ | p | p,q | q]=> (A45, 1)
+     (A40, 0) []
+       =[p,q | q]=> (A26, 1)
+     (A40, 1) []
+       =[p,q | q]=> (A26, 0)
+     (A45, 0) []
+       =[p,q]=> (A26, 1)
+     (A45, 1) []
+       =[p,q]=> (A26, 0)
+    Initial: (A4, 0) (A33, 0) (A40, 0)
+    Accept:  [(A33, 0), (A23, 0), (A26, 0), (A40, 0), (A45, 0)]
+    "###);
 }
 
 #[test]
@@ -132,7 +132,7 @@ fn it_should_convert_gba_into_ba() {
         accepting = [vec![s1]]
     };
 
-    insta::assert_snapshot!(gbuchi, @r###"
+    insta::assert_snapshot!(gbuchi.display(), @r###"
         States:
          "INIT" []
            =[a]=> "INIT"
@@ -146,23 +146,23 @@ fn it_should_convert_gba_into_ba() {
 
     let buchi = gbuchi.to_buchi();
 
-    insta::assert_snapshot!(buchi, @r###"
-        States:
-         ("INIT", 0) []
-           =[a]=> ("INIT", 1)
-           =[b]=> ("s1", 1)
-         ("INIT", 1) []
-           =[a]=> ("INIT", 0)
-           =[b]=> ("s1", 0)
-         ("s1", 0) []
-           =[a]=> ("INIT", 1)
-           =[b]=> ("s1", 1)
-         ("s1", 1) []
-           =[a]=> ("INIT", 0)
-           =[b]=> ("s1", 0)
-        Initial: ("INIT", 0)
-        Accept:  [("INIT", 0)]
-        "###);
+    insta::assert_snapshot!(buchi.display(), @r###"
+    States:
+     ("INIT", 0) []
+       =[a]=> ("INIT", 1)
+       =[b]=> ("s1", 1)
+     ("INIT", 1) []
+       =[a]=> ("INIT", 1)
+       =[b]=> ("s1", 1)
+     ("s1", 0) []
+       =[a]=> ("INIT", 0)
+       =[b]=> ("s1", 0)
+     ("s1", 1) []
+       =[a]=> ("INIT", 0)
+       =[b]=> ("s1", 0)
+    Initial: ("INIT", 0)
+    Accept:  [("INIT", 0)]
+    "###);
 }
 
 #[test]
@@ -186,7 +186,7 @@ fn it_should_convert_gba_into_ba2() {
         accepting = [vec![INIT, q2]]
     };
 
-    insta::assert_snapshot!(gbuchi, @r###"
+    insta::assert_snapshot!(gbuchi.display(), @r###"
         States:
          "INIT" []
            =[a]=> "q3"
@@ -206,35 +206,35 @@ fn it_should_convert_gba_into_ba2() {
 
     let buchi = gbuchi.to_buchi();
 
-    insta::assert_snapshot!(buchi, @r###"
-        States:
-         ("INIT", 0) []
-           =[a]=> ("q3", 1)
-           =[b]=> ("q2", 1)
-         ("INIT", 1) []
-           =[a]=> ("q3", 0)
-           =[b]=> ("q2", 0)
-         ("q2", 0) []
-           =[b]=> ("q2", 1)
-           =[a]=> ("q3", 1)
-         ("q2", 1) []
-           =[b]=> ("q2", 0)
-           =[a]=> ("q3", 0)
-         ("q3", 0) []
-           =[a]=> ("q3", 1)
-           =[b]=> ("q2", 1)
-         ("q3", 1) []
-           =[a]=> ("q3", 0)
-           =[b]=> ("q2", 0)
-         ("q4", 0) []
-           =[a]=> ("q3", 1)
-           =[b]=> ("q2", 1)
-         ("q4", 1) []
-           =[a]=> ("q3", 0)
-           =[b]=> ("q2", 0)
-        Initial: ("INIT", 0)
-        Accept:  [("INIT", 0), ("q3", 0)]
-        "###);
+    insta::assert_snapshot!(buchi.display(), @r###"
+    States:
+     ("INIT", 0) []
+       =[a]=> ("q3", 1)
+       =[b]=> ("q2", 1)
+     ("INIT", 1) []
+       =[a]=> ("q3", 0)
+       =[b]=> ("q2", 0)
+     ("q2", 0) []
+       =[b]=> ("q2", 0)
+       =[a]=> ("q3", 0)
+     ("q2", 1) []
+       =[b]=> ("q2", 0)
+       =[a]=> ("q3", 0)
+     ("q3", 0) []
+       =[a]=> ("q3", 1)
+       =[b]=> ("q2", 1)
+     ("q3", 1) []
+       =[a]=> ("q3", 1)
+       =[b]=> ("q2", 1)
+     ("q4", 0) []
+       =[a]=> ("q3", 0)
+       =[b]=> ("q2", 0)
+     ("q4", 1) []
+       =[a]=> ("q3", 1)
+       =[b]=> ("q2", 1)
+    Initial: ("INIT", 0)
+    Accept:  [("INIT", 0), ("q3", 0)]
+    "###);
 }
 
 #[test]
@@ -254,7 +254,7 @@ fn it_should_do_product_of_automata() {
     buchi1.add_accepting_state(r1);
     buchi1.add_init_state(r1);
 
-    insta::assert_snapshot!(buchi1, @r###"
+    insta::assert_snapshot!(buchi1.display(), @r###"
         States:
          "INIT" []
            =[a]=> "INIT"
@@ -279,7 +279,7 @@ fn it_should_do_product_of_automata() {
     buchi2.add_accepting_state(q1);
     buchi2.add_init_state(q1);
 
-    insta::assert_snapshot!(buchi2, @r###"
+    insta::assert_snapshot!(buchi2.display(), @r###"
         States:
          "INIT" []
            =[b]=> "INIT"
@@ -293,7 +293,7 @@ fn it_should_do_product_of_automata() {
 
     let buchi_product = buchi1.product(&buchi2);
 
-    insta::assert_snapshot!(buchi_product, @r###"
+    insta::assert_snapshot!(buchi_product.display(), @r###"
         States:
          ("INIT", "INIT") []
            =[a]=> ("INIT", "q2")
@@ -316,7 +316,7 @@ fn it_should_extract_buchi_from_nodeset2() {
 
     let gbuchi = ltl_expr.gba();
 
-    insta::assert_snapshot!(gbuchi, @r###"
+    insta::assert_snapshot!(gbuchi.display(), @r###"
         States:
          A10 []
            =[p1,p2 | p1,p2,p3 | p2 | p2,p3]=> A10
@@ -346,7 +346,7 @@ fn it_should_extract_buchi_from_nodeset3() {
 
     let gbuchi = ltl_expr.gba();
 
-    insta::assert_snapshot!(gbuchi, @r###"
+    insta::assert_snapshot!(gbuchi.display(), @r###"
         States:
          A11 []
            =[p,q | q]=> A16
@@ -383,7 +383,7 @@ fn it_should_extract_buchi_from_nodeset4() {
 
     let gbuchi = ltl_expr.gba();
 
-    insta::assert_snapshot!(gbuchi, @r###"
+    insta::assert_snapshot!(gbuchi.display(), @r###"
         States:
          A11 []
            =[p1,p2]=> A14
