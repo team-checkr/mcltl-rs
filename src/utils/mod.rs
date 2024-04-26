@@ -66,7 +66,7 @@ macro_rules! gbuchi {
 macro_rules! kripke {
     (
         $(
-            $world:ident = [$( $prop:expr),*]
+            $world:ident = [$( $prop:ident),*]
         )*
         ===
         $(
@@ -75,25 +75,15 @@ macro_rules! kripke {
         ===
         init = [$( $init:ident ),*]
     ) => {{
-        let mut kripke = KripkeStructure::<String, Literal>::new(vec![]);
+        let mut kripke = KripkeStructure::<String, Literal>::new(vec![$(stringify!($init).into(),)*]);
 
         $(
-            let mut $world = World {
-                id: stringify!($world).into(),
-                assignement: std::collections::HashMap::new(),
-            };
-            $(
-                $world.assignement.insert($prop.0.into(), $prop.1);
-            )*
-
-            kripke.add_world($world.clone());
+            let $world = kripke.add_node(stringify!($world).into(), [$(stringify!($prop).into()),*].into_iter().collect());
         )*
 
         $(
             kripke.add_relation($src.clone(), $dst.clone());
         )*
-
-        kripke.inits = vec![$($init.id.clone(),)*];
 
         kripke
     }};

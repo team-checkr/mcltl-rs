@@ -1,26 +1,29 @@
 use core::fmt;
-use std::collections::{BTreeSet, HashMap};
+use std::collections::BTreeSet;
 
 use itertools::Itertools;
 use plex::{lexer, parser};
 
 use crate::{
-    buchi::{Alphabet, AtomicProperty, Buchi, BuchiLikeMut as _},
+    buchi::{Alphabet, AtomicProperty, AtomicPropertySet, Buchi, BuchiLikeMut as _},
     ltl::expression::Literal,
+    nodes::{NodeArena, NodeId, SmartNodeSet},
     state::State,
 };
 
 #[derive(Debug, Clone, Eq, PartialEq)]
-pub struct World<S, AP: AtomicProperty> {
+pub struct KripkeNode<S, AP: AtomicProperty> {
     pub id: S,
-    pub assignement: HashMap<AP, bool>,
+    pub assignment: AP::Set,
 }
+
+type KripkeNodeId<S, AP> = NodeId<KripkeNode<S, AP>>;
 
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub struct KripkeStructure<S, AP: AtomicProperty> {
-    inits: Vec<S>, // s0
-    worlds: Vec<World<S, AP>>,
-    relations: Vec<(World<S, AP>, World<S, AP>)>,
+    nodes: NodeArena<KripkeNode<S, AP>>,
+    inits: SmartNodeSet<KripkeNode<S, AP>>, // s0
+    relations: Vec<(KripkeNodeId<S, AP>, KripkeNodeId<S, AP>)>,
 }
 
 impl KripkeStructure<String, Literal> {
@@ -44,8 +47,8 @@ impl<S: State, AP: AtomicProperty> KripkeStructure<S, AP> {
     pub fn alphabet(&self) -> Alphabet<AP> {
         let mut alphabet = BTreeSet::new();
 
-        for w in self.worlds.iter() {
-            for (k, _) in w.assignement.iter() {
+        for w in self.nodes.iter() {
+            for k in w.assignment.iter() {
                 alphabet.insert(k.clone());
             }
         }
@@ -67,27 +70,19 @@ impl<S: State, AP: AtomicProperty> KripkeStructure<S, AP> {
     pub fn to_buchi(&self) -> Buchi<S, AP> {
         let mut buchi: Buchi<S, AP> = Buchi::new(self.alphabet().clone());
 
-        for (src, dst) in self.relations.iter() {
-            if let Some(node) = buchi.get_node(&src.id) {
-                let target = buchi.push(dst.id.clone());
-                let labels = dst
-                    .assignement
-                    .iter()
-                    .filter(|(_, v)| **v)
-                    .map(|(k, _)| k.clone())
-                    .collect();
+        for &(src, dst) in self.relations.iter() {
+            let src_s = &self.nodes[src];
+            let dst_s = &self.nodes[dst];
+            if let Some(node) = buchi.get_node(&src_s.id) {
+                let target = buchi.push(dst_s.id.clone());
+                let labels = dst_s.assignment.iter().cloned().collect();
                 buchi.add_transition(node, target, labels);
                 buchi.add_accepting_state(node);
                 buchi.add_accepting_state(target);
             } else {
-                let node = buchi.push(src.id.clone());
-                let target = buchi.push(dst.id.clone());
-                let labels = dst
-                    .assignement
-                    .iter()
-                    .filter(|(_, v)| **v)
-                    .map(|(k, _)| k.clone())
-                    .collect();
+                let node = buchi.push(src_s.id.clone());
+                let target = buchi.push(dst_s.id.clone());
+                let labels = dst_s.assignment.iter().cloned().collect();
                 buchi.add_transition(node, target, labels);
                 buchi.add_accepting_state(node);
                 buchi.add_accepting_state(target);
@@ -96,15 +91,10 @@ impl<S: State, AP: AtomicProperty> KripkeStructure<S, AP> {
 
         let init = buchi.push(S::initial());
 
-        for i in &self.inits {
-            let world = self.worlds.iter().find(|w| &w.id == i).unwrap();
+        for i in self.inits.iter() {
+            let world = &self.nodes[i];
             let target_node = buchi.push(world.id.clone());
-            let labels = world
-                .assignement
-                .iter()
-                .filter(|(_, v)| **v)
-                .map(|(k, _)| k.clone())
-                .collect();
+            let labels = world.assignment.iter().cloned().collect();
             buchi.add_transition(init, target_node, labels);
         }
 
@@ -117,20 +107,41 @@ impl<S: State, AP: AtomicProperty> KripkeStructure<S, AP> {
 
 impl<S: State, AP: AtomicProperty> KripkeStructure<S, AP> {
     pub fn new(inits: Vec<S>) -> Self {
+        let mut worlds = NodeArena::new();
+        let mut new_inits = SmartNodeSet::new();
+        for i in inits {
+            new_inits.insert(worlds.push(KripkeNode {
+                id: i,
+                assignment: Default::default(),
+            }));
+        }
+
         Self {
-            inits,
-            worlds: Vec::new(),
+            inits: new_inits,
+            nodes: worlds,
             relations: Vec::new(),
         }
     }
 
+    fn find_world(&self, s: &S) -> Option<KripkeNodeId<S, AP>> {
+        self.nodes
+            .iter_with_ids()
+            .find(|w| &w.1.id == s)
+            .map(|w| w.0)
+    }
+
     /// Add a new world
-    pub fn add_world(&mut self, w: World<S, AP>) {
-        self.worlds.push(w);
+    pub fn add_node(&mut self, w: S, assignment: AP::Set) -> KripkeNodeId<S, AP> {
+        if let Some(w) = self.find_world(&w) {
+            self.nodes[w].assignment.extend(assignment.iter().cloned());
+            w
+        } else {
+            self.nodes.push(KripkeNode { id: w, assignment })
+        }
     }
 
     /// Add a new relation
-    pub fn add_relation(&mut self, w1: World<S, AP>, w2: World<S, AP>) {
+    pub fn add_relation(&mut self, w1: KripkeNodeId<S, AP>, w2: KripkeNodeId<S, AP>) {
         self.relations.push((w1, w2));
     }
 
@@ -141,9 +152,14 @@ impl<S: State, AP: AtomicProperty> KripkeStructure<S, AP> {
         for e in exprs.iter() {
             match e {
                 Expr::Init(inits) => {
-                    kripke.inits = inits.clone();
+                    for i in inits.iter() {
+                        let n = kripke.add_node(i.clone(), Default::default());
+                        kripke.inits.insert(n);
+                    }
                 }
-                Expr::World(w) => kripke.worlds.push((*w).clone()),
+                Expr::World(w) => {
+                    kripke.add_node(w.id.clone(), w.assignment.clone());
+                }
                 Expr::Relation(_, _) => {}
             }
         }
@@ -152,13 +168,11 @@ impl<S: State, AP: AtomicProperty> KripkeStructure<S, AP> {
             match e {
                 Expr::Relation(src, dst) => {
                     for dst in dst.iter() {
-                        let dst_world = kripke.worlds.iter().find(|w| &w.id == dst);
-                        let src_world = kripke.worlds.iter().find(|w| &w.id == src);
+                        let src_world = kripke.find_world(src);
+                        let dst_world = kripke.find_world(dst);
 
                         match (src_world, dst_world) {
-                            (Some(src), Some(dst)) => {
-                                kripke.relations.push(((*src).clone(), (*dst).clone()))
-                            }
+                            (Some(src), Some(dst)) => kripke.add_relation(src, dst),
                             (Some(_), None) => {
                                 return Err(format!(
                                     "cannot find world `{}` in this scope",
@@ -184,7 +198,7 @@ impl<S: State, AP: AtomicProperty> KripkeStructure<S, AP> {
                 Expr::World(_) => {}
                 Expr::Init(inits) => {
                     for i in inits.iter() {
-                        if !kripke.worlds.iter().any(|w| &w.id == i) {
+                        if !kripke.nodes.iter().any(|w| &w.id == i) {
                             return Err(format!(
                                 "cannot find init world `{}` in this scope",
                                 i.name()
@@ -206,19 +220,11 @@ impl<S: State + fmt::Display, AP: AtomicProperty + fmt::Display> fmt::Display
         writeln!(f, "init = {{{:?}}}", self.inits.iter().join(", "))?;
         writeln!(f)?;
 
-        for n in &self.worlds {
-            writeln!(
-                f,
-                "{} = {{{}}}",
-                n.id,
-                n.assignement
-                    .iter()
-                    .map(|(k, v)| format!("{}{k}", if *v { "" } else { "~" }))
-                    .join(", ")
-            )?;
-            for (m1, m2) in &self.relations {
-                if n == m1 {
-                    writeln!(f, "{} => {} ;;", m1.id, m2.id)?;
+        for (n_id, n) in self.nodes.iter_with_ids() {
+            writeln!(f, "{} = {{{}}}", n.id, n.assignment.iter().join(", "))?;
+            for &(m1, m2) in &self.relations {
+                if n_id == m1 {
+                    writeln!(f, "{} => {} ;;", n.id, self.nodes[m2].id)?;
                 }
             }
             writeln!(f)?;
@@ -319,7 +325,7 @@ impl<'a> KripkeLexer<'a> {
 #[derive(Debug, Clone)]
 pub enum Expr<S, AP: AtomicProperty> {
     Init(Vec<S>),
-    World(World<S, AP>),
+    World(KripkeNode<S, AP>),
     Relation(S, Vec<S>),
 }
 
@@ -336,7 +342,6 @@ mod parser {
 
     use super::Token::*;
     use super::*;
-    use std::iter::FromIterator;
 
     parser! {
         fn parse_(Token, Span);
@@ -357,7 +362,7 @@ mod parser {
 
         term: Expr<String, Literal> {
             Ident(i) Equ LBrace props[p] RBrace =>  {
-                Expr::World(World{ id: i, assignement: HashMap::from_iter(p.into_iter())})
+                Expr::World(KripkeNode{ id: i, assignment: p.into_iter().filter_map(|(a, b)| b.then_some(a)).collect()})
             },
             Ident(src) Relation LBrace idents[ws] RBrace => {
                 Expr::Relation(src, ws)
@@ -412,9 +417,9 @@ mod tests {
     #[test]
     fn it_should_compute_nba_from_kripke_struct() {
         let kripke = crate::kripke! {
-            n1 = [ ("p", true), ("q", true) ]
-            n2 = [ ("p", true) ]
-            n3 = [ ("q", true) ]
+            n1 = [ p, q ]
+            n2 = [ p ]
+            n3 = [ q ]
             ===
             n1 R n2
             n2 R n1
@@ -434,9 +439,9 @@ mod tests {
     #[test]
     fn it_should_compute_nba_from_kripke_struct2() {
         let kripke = crate::kripke! {
-            n1 = [ ("a", true) ]
-            n2 = [ ("b", true) ]
-            n3 = [ ("c", true) ]
+            n1 = [ a ]
+            n2 = [ b ]
+            n3 = [ c ]
             ===
             n1 R n2
             n2 R n3
@@ -476,7 +481,7 @@ mod tests {
 
         let kripke = res.unwrap();
         assert_eq!(2, kripke.inits.len());
-        assert_eq!(3, kripke.worlds.len());
+        assert_eq!(3, kripke.nodes.len());
         assert_eq!(4, kripke.relations.len());
     }
 

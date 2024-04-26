@@ -3,7 +3,10 @@ use std::collections::{BTreeSet, HashMap};
 use itertools::Itertools;
 
 use crate::{
-    buchi::{AtomicProperty, AtomicPropertySet, BuchiLikeMut as _, GeneralBuchi, Neighbors},
+    buchi::{
+        AtomicProperty, AtomicPropertySet, BuchiLike as _, BuchiLikeMut as _, GeneralBuchi,
+        Neighbors,
+    },
     nodes::NodeSet,
     state::State,
 };
@@ -377,10 +380,10 @@ fn extract_buchi<'a, AP: AtomicProperty + 'a>(
                 let m_id = b.push(m);
                 let label: Neighbors<AP> =
                     if oldfs[&m].iter().all(|p| matches!(p, NnfLtl::Bool(true))) {
-                        Neighbors::any(b.alphabet())
+                        Neighbors::any(&*b.alphabet())
                     } else {
-                        let remaining = b
-                            .alphabet()
+                        let alphabet = b.alphabet();
+                        let remaining = alphabet
                             .symbols()
                             .filter(|s| !required.contains(s) && !disallowed.contains(s))
                             .collect_vec();

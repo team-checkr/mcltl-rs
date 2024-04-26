@@ -286,6 +286,8 @@ pub trait BuchiLike<S, AP: AtomicProperty> {
         AP: 'a;
     fn adj_ids(&self, id: Self::NodeId) -> impl Iterator<Item = Self::NodeId> + Clone + '_;
 
+    fn alphabet(&self) -> Cow<'_, Alphabet<AP>>;
+
     fn fmt_node(&self, id: Self::NodeId) -> String;
     fn fmt_accepting_state<'a>(&'a self, accepting_states: Self::AcceptingState<'a>) -> String;
 
@@ -399,6 +401,10 @@ impl<S: State, AP: AtomicProperty> BuchiLike<S, AP> for GeneralBuchi<S, AP> {
         self.nodes[id].adj.ids()
     }
 
+    fn alphabet(&self) -> Cow<'_, Alphabet<AP>> {
+        Cow::Borrowed(&self.alphabet)
+    }
+
     fn fmt_node(&self, id: Self::NodeId) -> String {
         format!("{:?}", self.id(id))
     }
@@ -457,10 +463,6 @@ impl<S: State, AP: AtomicProperty> GeneralBuchi<S, AP> {
 
     pub fn id(&self, node_id: BuchiNodeId<S, AP>) -> &S {
         &self.nodes[node_id].id
-    }
-
-    pub fn alphabet(&self) -> &Alphabet<AP> {
-        &self.alphabet
     }
 }
 
@@ -523,6 +525,10 @@ impl<S: State, AP: AtomicProperty> BuchiLike<S, AP> for Buchi<S, AP> {
 
     fn adj_ids(&self, id: Self::NodeId) -> impl Iterator<Item = Self::NodeId> + Clone + '_ {
         self.nodes[id].adj.ids()
+    }
+
+    fn alphabet(&self) -> Cow<'_, Alphabet<AP>> {
+        Cow::Borrowed(&self.alphabet)
     }
 
     fn fmt_node(&self, id: Self::NodeId) -> String {
@@ -600,7 +606,7 @@ impl<S: State, AP: AtomicProperty> Buchi<S, AP> {
     }
 
     pub fn pruned(&self) -> Buchi<S, AP> {
-        let mut pruned: Buchi<S, AP> = Buchi::new(self.alphabet().clone());
+        let mut pruned: Buchi<S, AP> = Buchi::new(self.alphabet().into_owned());
         let mut stack = self.init_states().collect_vec();
         let mut visited = NodeSet::default();
         let mut mapping: HashMap<BuchiNodeId<S, AP>, BuchiNodeId<S, AP>> = HashMap::default();
@@ -634,10 +640,6 @@ impl<S: State, AP: AtomicProperty> Buchi<S, AP> {
         }
 
         pruned
-    }
-
-    pub fn alphabet(&self) -> &Alphabet<AP> {
-        &self.alphabet
     }
 
     /// Product of the program and the property
@@ -780,6 +782,11 @@ impl<'s, 't, S: State, T: State, AP: AtomicProperty> BuchiLike<(S, T), AP>
             .into_iter()
     }
 
+    fn alphabet(&self) -> Cow<'_, Alphabet<AP>> {
+        // TODO: should we make sure that we include both?
+        Cow::Owned(self.a.alphabet.union(&self.b.alphabet))
+    }
+
     fn fmt_node(&self, id: Self::NodeId) -> String {
         format!("({:?}, {:?})", self.a.id(id.0), self.b.id(id.1))
     }
@@ -822,7 +829,7 @@ impl<S: State, AP: AtomicProperty> std::ops::Index<BuchiNodeId<S, AP>> for Buchi
 /// * `F'=F1× {1}`
 impl<S: State, AP: AtomicProperty> GeneralBuchi<S, AP> {
     pub fn to_buchi(&self) -> Buchi<(S, usize), AP> {
-        let mut ba: Buchi<(S, usize), AP> = Buchi::new(self.alphabet().clone());
+        let mut ba: Buchi<(S, usize), AP> = Buchi::new(self.alphabet().into_owned());
 
         if self.accepting_states.is_empty() {
             // tracing::debug!(%self, "no accepting states found, adding all states as accepting states");

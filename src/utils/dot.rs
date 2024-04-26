@@ -1,7 +1,10 @@
 use core::fmt;
+use std::marker::PhantomData;
 
 use crate::{
-    buchi::{AtomicProperty, AtomicPropertySet, Buchi, BuchiLike, GeneralBuchi, Neighbors},
+    buchi::{
+        AtomicProperty, AtomicPropertySet, Buchi, BuchiLike, GeneralBuchi, Neighbors, ProductBuchi,
+    },
     state::State,
 };
 use dot;
@@ -15,17 +18,45 @@ const Q_INIT: &str = "qInitial";
 impl<S: State, AP: AtomicProperty + fmt::Display> Buchi<S, AP> {
     /// Produce the DOT of a Büchi automaton
     pub fn dot(&self) -> String {
-        let mut buf = Vec::new();
-        dot::render(self, &mut buf).unwrap();
-        String::from_utf8(buf).unwrap()
+        Dot("buchi", self, PhantomData).to_string()
     }
 }
 
-impl<'a, S: State, AP: AtomicProperty + fmt::Display> dot::Labeller<'a, Node, Edge<'a, AP>>
-    for Buchi<S, AP>
+impl<S: State, AP: AtomicProperty + fmt::Display> GeneralBuchi<S, AP> {
+    /// Produce the DOT of a Generalized Büchi automaton
+    pub fn dot(&self) -> String {
+        Dot("gbuchi", self, PhantomData).to_string()
+    }
+}
+
+impl<S: State, T: State, AP: AtomicProperty + fmt::Display> ProductBuchi<'_, '_, S, T, AP> {
+    /// Produce the DOT of a Generalized Büchi automaton
+    pub fn dot(&self) -> String {
+        Dot("gbuchi", self, PhantomData).to_string()
+    }
+}
+
+pub struct Dot<'a, S, AP: AtomicProperty, B: BuchiLike<S, AP>>(
+    &'static str,
+    &'a B,
+    PhantomData<(S, AP)>,
+);
+
+impl<'g, S: State, AP: AtomicProperty + fmt::Display, B: BuchiLike<S, AP>> fmt::Display
+    for Dot<'g, S, AP, B>
+{
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let mut buf = Vec::new();
+        dot::render(self, &mut buf).unwrap();
+        writeln!(f, "{}", String::from_utf8(buf).unwrap())
+    }
+}
+
+impl<'a, 'g, S: State, AP: AtomicProperty + fmt::Display, B: BuchiLike<S, AP>>
+    dot::Labeller<'a, Node, Edge<'a, AP>> for Dot<'g, S, AP, B>
 {
     fn graph_id(&'a self) -> dot::Id<'a> {
-        dot::Id::new("buchi").unwrap()
+        dot::Id::new(self.0).unwrap()
     }
 
     fn node_id(&'a self, n: &Node) -> dot::Id<'a> {
@@ -60,12 +91,13 @@ impl<'a, S: State, AP: AtomicProperty + fmt::Display> dot::Labeller<'a, Node, Ed
                         ap.iter()
                             .map(|s| s.to_string())
                             .chain(
-                                self.alphabet()
+                                self.1
+                                    .alphabet()
                                     .symbols()
                                     .filter(|s| !ap.contains(s))
                                     .map(|s| format!("~{s}")),
                             )
-                            .format(",")
+                            .join(",")
                     })
                     .join(" | ");
                 let tmp2 = tmp.replace('¬', "~");
@@ -77,7 +109,10 @@ impl<'a, S: State, AP: AtomicProperty + fmt::Display> dot::Labeller<'a, Node, Ed
     }
 
     fn node_shape<'b>(&'b self, n: &Node) -> Option<dot::LabelText<'b>> {
-        let is_an_accepting_state = self.accepting_states().any(|bns| self.fmt_node(bns) == *n);
+        let is_an_accepting_state = self
+            .1
+            .accepting_states()
+            .any(|bns| self.1.fmt_accepting_state(bns) == *n);
 
         if is_an_accepting_state {
             Some(dot::LabelText::LabelStr("doublecircle".into()))
@@ -89,12 +124,12 @@ impl<'a, S: State, AP: AtomicProperty + fmt::Display> dot::Labeller<'a, Node, Ed
     }
 }
 
-impl<'a, S: State, AP: AtomicProperty + fmt::Display> dot::GraphWalk<'a, Node, Edge<'a, AP>>
-    for Buchi<S, AP>
+impl<'a, 'g, S: State, AP: AtomicProperty + fmt::Display, B: BuchiLike<S, AP>>
+    dot::GraphWalk<'a, Node, Edge<'a, AP>> for Dot<'g, S, AP, B>
 {
     fn nodes(&self) -> dot::Nodes<'a, Node> {
-        let mut adjs: Vec<Node> = BuchiLike::nodes(self)
-            .map(|adj| self.fmt_node(adj))
+        let mut adjs: Vec<Node> = BuchiLike::nodes(self.1)
+            .map(|adj| self.1.fmt_node(adj))
             .collect();
         adjs.push(Q_INIT.to_string());
 
@@ -103,130 +138,22 @@ impl<'a, S: State, AP: AtomicProperty + fmt::Display> dot::GraphWalk<'a, Node, E
 
     fn edges(&'a self) -> dot::Edges<'a, Edge<'a, AP>> {
         let mut edges = self
+            .1
             .init_states()
-            .map(|id| (Q_INIT.to_string(), [].into(), self.fmt_node(id)))
+            .map(|id| (Q_INIT.to_string(), [].into(), self.1.fmt_node(id)))
             .collect_vec();
-        for source in BuchiLike::nodes(self) {
-            for (target, target_labels) in self.adj_labels(source) {
+        for source in BuchiLike::nodes(self.1) {
+            for (target, target_labels) in self.1.adj_labels(source) {
                 edges.push((
-                    self.fmt_node(source),
+                    self.1.fmt_node(source),
                     target_labels.into_owned(),
-                    self.fmt_node(target),
+                    self.1.fmt_node(target),
                 ));
             }
         }
 
         edges.into()
     }
-    fn source(&self, e: &Edge<AP>) -> Node {
-        e.0.clone()
-    }
-    fn target(&self, e: &Edge<AP>) -> Node {
-        e.2.clone()
-    }
-}
-
-impl<S: State, AP: AtomicProperty + fmt::Display> GeneralBuchi<S, AP> {
-    /// Produce the DOT of a Generalized Büchi automaton
-    pub fn dot(&self) -> String {
-        let mut buf = Vec::new();
-        dot::render(self, &mut buf).unwrap();
-        String::from_utf8(buf).unwrap()
-    }
-}
-
-impl<'a, S: State, AP: AtomicProperty + fmt::Display> dot::Labeller<'a, Node, Edge<'a, AP>>
-    for GeneralBuchi<S, AP>
-{
-    fn graph_id(&'a self) -> dot::Id<'a> {
-        dot::Id::new("gbuchi").unwrap()
-    }
-
-    fn node_id(&'a self, n: &Node) -> dot::Id<'a> {
-        dot::Id::new(n.to_string()).unwrap()
-    }
-
-    fn node_label<'b>(&'b self, n: &Node) -> dot::LabelText<'b> {
-        dot::LabelText::LabelStr(n.to_string().into())
-    }
-    fn edge_label<'b>(&'b self, e: &Edge<AP>) -> dot::LabelText<'b> {
-        if e.0 == Q_INIT {
-            return dot::LabelText::LabelStr("".into());
-        }
-
-        match &e.1 {
-            Neighbors::Any => dot::LabelText::LabelStr("*".into()),
-            Neighbors::Just(props) => {
-                let tmp = props
-                    .iter()
-                    .map(|ap| {
-                        ap.iter()
-                            .map(|s| s.to_string())
-                            .chain(
-                                self.alphabet()
-                                    .symbols()
-                                    .filter(|s| !ap.contains(s))
-                                    .map(|s| format!("~{s}")),
-                            )
-                            .format(",")
-                    })
-                    .join(" | ");
-                let tmp2 = tmp.replace('¬', "~");
-                let comma_separated = tmp2.replace('⊥', "F");
-
-                dot::LabelText::LabelStr(comma_separated.into())
-            }
-        }
-    }
-
-    fn node_shape<'b>(&'b self, n: &Node) -> Option<dot::LabelText<'b>> {
-        let is_an_accepting_state =
-            if let Some(node) = BuchiLike::nodes(self).find(|node| self.fmt_node(*node) == *n) {
-                self.is_accepting_state(node)
-            } else {
-                false
-            };
-
-        if is_an_accepting_state {
-            Some(dot::LabelText::LabelStr("doublecircle".into()))
-        } else if n == Q_INIT {
-            Some(dot::LabelText::LabelStr("point".into()))
-        } else {
-            None
-        }
-    }
-}
-
-impl<'a, S: State, AP: AtomicProperty + fmt::Display> dot::GraphWalk<'a, Node, Edge<'a, AP>>
-    for GeneralBuchi<S, AP>
-{
-    fn nodes(&self) -> dot::Nodes<'a, Node> {
-        let mut adjs: Vec<Node> = BuchiLike::nodes(self)
-            .map(|adj| self.fmt_node(adj))
-            .collect();
-        adjs.push(Q_INIT.to_string());
-
-        adjs.into()
-    }
-
-    fn edges(&'a self) -> dot::Edges<'a, Edge<'a, AP>> {
-        let mut edges = self
-            .init_states()
-            .map(|id| (Q_INIT.to_string(), [].into(), self.fmt_node(id)))
-            .collect_vec();
-        for source in BuchiLike::nodes(self) {
-            for (target, target_labels) in self.adj_labels(source) {
-                edges.push((
-                    self.fmt_node(source),
-                    target_labels.into_owned(),
-                    self.fmt_node(target),
-                ));
-            }
-        }
-
-        edges.into()
-    }
-
     fn source(&self, e: &Edge<AP>) -> Node {
         e.0.clone()
     }
