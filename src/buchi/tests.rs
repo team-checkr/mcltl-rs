@@ -10,7 +10,7 @@ fn it_should_extract_buchi_from_nodeset() {
     // p U q
     let ltl_expr = lit("p").U(lit("q"));
 
-    let gbuchi = ltl_expr.gba();
+    let gbuchi = ltl_expr.gba(None);
 
     insta::assert_snapshot!(gbuchi.display(), @r###"
         States:
@@ -31,7 +31,7 @@ fn it_should_convert_gba_construct_from_ltl_into_ba() {
     // Fp1 U Gp2
     let ltl_expr = NnfLtl::F(lit("p")).U(NnfLtl::G(lit("q")));
 
-    let gbuchi = ltl_expr.gba();
+    let gbuchi = ltl_expr.gba(None);
 
     insta::assert_snapshot!(gbuchi.display(), @r###"
         States:
@@ -314,7 +314,7 @@ fn it_should_extract_buchi_from_nodeset2() {
     // p1 U (p2 U p3)
     let ltl_expr = lit("p1").U(lit("p2").U(lit("p3")));
 
-    let gbuchi = ltl_expr.gba();
+    let gbuchi = ltl_expr.gba(None);
 
     insta::assert_snapshot!(gbuchi.display(), @r###"
         States:
@@ -344,7 +344,7 @@ fn it_should_extract_buchi_from_nodeset3() {
     // Fp1 U Gp2
     let ltl_expr = NnfLtl::F(lit("p")).U(NnfLtl::G(lit("q")));
 
-    let gbuchi = ltl_expr.gba();
+    let gbuchi = ltl_expr.gba(None);
 
     insta::assert_snapshot!(gbuchi.display(), @r###"
         States:
@@ -381,7 +381,7 @@ fn it_should_extract_buchi_from_nodeset4() {
     // Fp1 U Gp2
     let ltl_expr = NnfLtl::G(lit("p1")).U(lit("p2"));
 
-    let gbuchi = ltl_expr.gba();
+    let gbuchi = ltl_expr.gba(None);
 
     insta::assert_snapshot!(gbuchi.display(), @r###"
         States:

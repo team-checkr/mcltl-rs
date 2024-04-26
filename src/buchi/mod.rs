@@ -129,7 +129,7 @@ impl<AP> Alphabet<AP> {
     pub fn symbols(&self) -> impl Iterator<Item = &AP> {
         self.symbols.iter()
     }
-    fn union(&self, other: &Self) -> Self
+    pub fn union(&self, other: &Self) -> Self
     where
         AP: Clone + Ord,
     {

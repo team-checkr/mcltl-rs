@@ -4,8 +4,8 @@ use itertools::Itertools;
 
 use crate::{
     buchi::{
-        AtomicProperty, AtomicPropertySet, BuchiLike as _, BuchiLikeMut as _, GeneralBuchi,
-        Neighbors,
+        Alphabet, AtomicProperty, AtomicPropertySet, BuchiLike as _, BuchiLikeMut as _,
+        GeneralBuchi, Neighbors,
     },
     nodes::NodeSet,
     state::State,
@@ -48,9 +48,9 @@ impl<AP: AtomicProperty> NnfLtl<AP> {
     /// Logic](https://link.springer.com/content/pdf/10.1007/978-0-387-34892-6_1.pdf).
     /// The graph constructed by the algorithm can be used to deﬁne an LGBA
     /// accepting the inﬁnite words satisfying the formula.
-    pub fn gba(&self) -> GeneralBuchi<AutomataId, AP> {
+    pub fn gba(&self, alphabet: Option<&Alphabet<AP>>) -> GeneralBuchi<AutomataId, AP> {
         let nodes = AutomataGraph::create_graph(self);
-        extract_buchi(nodes.iter(), self)
+        extract_buchi(nodes.iter(), alphabet, self)
     }
 }
 
@@ -338,9 +338,11 @@ impl<AP: Ord> NnfLtl<AP> {
 /// LGBA construction from create_graph set Q result
 fn extract_buchi<'a, AP: AtomicProperty + 'a>(
     result: impl Iterator<Item = &'a Node<AP>> + Clone,
+    alphabet: Option<&Alphabet<AP>>,
     f: &NnfLtl<AP>,
 ) -> GeneralBuchi<AutomataId, AP> {
-    let mut b: GeneralBuchi<AutomataId, AP> = GeneralBuchi::new(f.alphabet());
+    let mut b: GeneralBuchi<AutomataId, AP> =
+        GeneralBuchi::new(alphabet.into_iter().fold(f.alphabet(), |a, b| a.union(b)));
 
     let oldfs = result
         .clone()

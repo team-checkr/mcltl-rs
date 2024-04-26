@@ -41,7 +41,7 @@ fn verify_property(contents: &str, opts: Opts) {
         ok!("Parsing kripke program");
     }
 
-    let buchi_program = kripke_program.unwrap().to_buchi();
+    let buchi_program = kripke_program.unwrap().to_buchi(None);
 
     let ltl_property = LTLExpression::try_from(opts.property.as_str());
 
@@ -55,7 +55,7 @@ fn verify_property(contents: &str, opts: Opts) {
     let nnf_ltl_property = ltl_property.unwrap().nnf();
     ok!("Converting LTL property in NNF");
 
-    let gbuchi_property = nnf_ltl_property.gba();
+    let gbuchi_property = nnf_ltl_property.gba(None);
     ok!("Constructing the graph of the LTL property");
 
     let buchi_property = gbuchi_property.to_buchi();

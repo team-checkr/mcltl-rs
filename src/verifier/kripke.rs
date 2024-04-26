@@ -67,8 +67,12 @@ impl<S: State, AP: AtomicProperty> KripkeStructure<S, AP> {
     /// * Transitions:
     ///     * `δ : q →a q'` iff `(q, q) ∈ R` and `AP(q') = a`
     ///     * `init ->a q` iff `q ∈ S0` and `AP(q) = a`
-    pub fn to_buchi(&self) -> Buchi<S, AP> {
-        let mut buchi: Buchi<S, AP> = Buchi::new(self.alphabet().clone());
+    pub fn to_buchi(&self, alphabet: Option<&Alphabet<AP>>) -> Buchi<S, AP> {
+        let mut buchi: Buchi<S, AP> = Buchi::new(
+            alphabet
+                .into_iter()
+                .fold(self.alphabet().clone(), |a, b| a.union(b)),
+        );
 
         for &(src, dst) in self.relations.iter() {
             let src_s = &self.nodes[src];
@@ -96,6 +100,7 @@ impl<S: State, AP: AtomicProperty> KripkeStructure<S, AP> {
             let target_node = buchi.push(world.id.clone());
             let labels = world.assignment.iter().cloned().collect();
             buchi.add_transition(init, target_node, labels);
+            buchi.add_accepting_state(target_node);
         }
 
         buchi.add_init_state(init);
@@ -429,7 +434,7 @@ mod tests {
             init = [n1, n2]
         };
 
-        let buchi = kripke.to_buchi();
+        let buchi = kripke.to_buchi(None);
 
         assert_eq!(4, buchi.accepting_states().count());
         assert_eq!(1, buchi.init_states().count());
@@ -450,7 +455,7 @@ mod tests {
             init = [n1]
         };
 
-        let buchi = kripke.to_buchi();
+        let buchi = kripke.to_buchi(None);
 
         assert_eq!(4, buchi.accepting_states().count());
         assert_eq!(1, buchi.init_states().count());
