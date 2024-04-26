@@ -1,35 +1,29 @@
 pub mod dot;
 
 #[macro_export]
-macro_rules! buchi{
+macro_rules! buchi {
     (
         $(
             $src: ident
-                $([$( $ltl:expr ),*] => $dest: ident)*
+                $([$($ltl:ident),*] => $dest: ident)*
         )*
         ===
         init = [$( $init:ident ),*]
         accepting = [$( $accepting_state:ident ),*]
     ) => {{
-        let mut graph = Buchi::new();
+        let alphabet = [$($($(Literal::from(stringify!($ltl)),)*)*)*].into_iter().collect();
+        let mut graph = Buchi::new(alphabet);
         $(
-            #[allow(unused_mut, non_snake_case)]
-            let mut $src = BuchiNode::new(stringify!($src).to_string());
+            #[allow(unused, unused_mut, non_snake_case)]
+            let mut $src = graph.push(stringify!($src).to_string());
             $(
-                $src.adj.push(
-                    BuchiNode {
-                        id: stringify!($dest).into(),
-                        labels: vec![$($ltl),*],
-                        adj: vec![],
-                    }
-                );
+                let dest = graph.push(stringify!($dest).into());
+                graph.add_transition($src, dest, [$(Literal::from(stringify!($ltl))),*].into());
             )*
-
-            graph.adj_list.push($src.clone());
         )*
 
-        $(graph.init_states.push($init.clone());)*
-        $(graph.accepting_states.push($accepting_state.clone());)*
+        $(graph.add_init_state($init);)*
+        $(graph.add_accepting_state($accepting_state);)*
 
         graph
     }};
@@ -40,31 +34,25 @@ macro_rules! gbuchi {
     (
         $(
             $src: ident
-                $([$ltl:expr] => $dest: ident)*
+                $([$ltl:ident] => $dest: ident)*
         )*
         ===
         init = [$( $init:ident ),*]
         $(accepting = [$( $accepting_states:expr ),*])*
     ) => {{
-        let mut graph = GeneralBuchi::new();
+        let alphabet = [$($(Literal::from(stringify!($ltl)),)*)*].into_iter().collect();
+        let mut graph = GeneralBuchi::new(alphabet);
         $(
             #[allow(unused_mut, non_snake_case)]
-            let mut $src = BuchiNode::new(stringify!($src).to_string());
+            let mut $src = graph.push(stringify!($src).to_string());
             $(
-                $src.adj.push(
-                    BuchiNode {
-                        id: stringify!($dest).into(),
-                        labels: vec![$ltl],
-                        adj: vec![],
-                    }
-                );
+                let dest = graph.push(stringify!($dest).into());
+                graph.add_transition($src, dest, [stringify!($ltl).into()].into());
             )*
-
-            graph.adj_list.push($src.clone());
         )*
 
-        $(graph.init_states.push($init.clone());)*
-        $($(graph.accepting_states.push($accepting_states.clone());)*)*
+        $(graph.add_init_state($init);)*
+        $($(graph.add_accepting_state($accepting_states.into_iter());)*)*
 
         graph
     }};
@@ -83,7 +71,7 @@ macro_rules! kripke {
         ===
         init = [$( $init:ident ),*]
     ) => {{
-        let mut kripke = KripkeStructure::<String>::new(vec![]);
+        let mut kripke = KripkeStructure::<String, Literal>::new(vec![]);
 
         $(
             let mut $world = World {

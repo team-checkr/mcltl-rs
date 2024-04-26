@@ -1,7 +1,6 @@
-use mcltl::buchi;
-use mcltl::ltl::automata;
+use mcltl::buchi::ProductBuchi;
 use mcltl::ltl::expression::LTLExpression;
-use mcltl::verifier::{kripke, model_checker};
+use mcltl::verifier::kripke;
 
 use clap::Parser;
 
@@ -32,8 +31,8 @@ struct Opts {
     property: String,
 }
 
-fn verify_property(contents: String, opts: Opts) {
-    let kripke_program = kripke::KripkeStructure::try_from(contents);
+fn verify_property(contents: &str, opts: Opts) {
+    let kripke_program = kripke::KripkeStructure::parse(contents);
 
     if let Err(e) = kripke_program {
         error!("Parsing kripke program", e);
@@ -42,7 +41,7 @@ fn verify_property(contents: String, opts: Opts) {
         ok!("Parsing kripke program");
     }
 
-    let buchi_program: buchi::Buchi<_> = kripke_program.unwrap().clone().into();
+    let buchi_program = kripke_program.unwrap().to_buchi();
 
     let ltl_property = LTLExpression::try_from(opts.property.as_str());
 
@@ -53,49 +52,28 @@ fn verify_property(contents: String, opts: Opts) {
         ok!("Parsing LTL property");
     }
 
-    let nnf_ltl_property = ltl_property.unwrap().rewrite().nnf();
+    let nnf_ltl_property = ltl_property.unwrap().nnf();
     ok!("Converting LTL property in NNF");
 
-    let nodes = automata::create_graph::<String>(nnf_ltl_property.clone());
+    let gbuchi_property = nnf_ltl_property.gba();
     ok!("Constructing the graph of the LTL property");
-
-    let gbuchi_property = buchi::extract_buchi(nodes, nnf_ltl_property);
-    ok!("Extracting a generalized Buchi automaton");
 
     let buchi_property = gbuchi_property.to_buchi();
     ok!("converting the generalized Buchi automaton into classic Buchi automaton");
 
-    let product_ba = buchi::product_automata(buchi_program.clone(), buchi_property.clone());
+    let product_ba = ProductBuchi::new(&buchi_program, &buchi_property);
     ok!("Constructing the product of program and property automata");
 
-    let res = model_checker::emptiness(product_ba);
+    let res = product_ba.find_accepting_cycle();
 
-    if let Err((mut s1, mut s2)) = res {
-        s1.reverse();
-        s2.reverse();
-
+    if let Some(cycle) = res {
         eprintln!("\n\x1b[1;31mResult: LTL property does not hold\x1b[0m");
         eprintln!("counterexample:\n");
 
-        while let Some(top) = s1.pop() {
-            let id = top.id.0;
+        for (top, _) in cycle.iter() {
+            let id = buchi_program.id(top);
 
-            if let Some(l) = top.labels.first() {
-                eprint!("{}: {} → ", id, l);
-            } else {
-                eprint!("{} → ", id);
-            }
-        }
-
-        while let Some(top) = s2.pop() {
-            let label = top.labels.first().unwrap();
-            let id = top.id.0;
-
-            if s2.is_empty() {
-                eprintln!("{}: {}", id, label);
-            } else {
-                eprint!("{}: {} →", id, label);
-            }
+            eprint!("{} → ", id);
         }
     } else {
         println!("\n\x1b[1;32mResult: LTL property hold!\x1b[0m");
@@ -114,6 +92,6 @@ fn main() {
         );
     } else {
         ok!("Loading kripke file");
-        verify_property(contents.unwrap(), opts);
+        verify_property(&contents.unwrap(), opts);
     }
 }

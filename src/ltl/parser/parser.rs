@@ -75,7 +75,7 @@ parser! {
     atom: LTLExpressionSpan {
         Ident(i) => LTLExpressionSpan {
             span: span!(),
-            expr: LTLExpression::Literal(i),
+            expr: LTLExpression::Literal(i.into()),
         },
         True => LTLExpressionSpan {
             span: span!(),
