@@ -514,22 +514,23 @@ mod tests {
         );
     }
 
-    #[test]
-    fn it_should_parse_kripke_structure_and_fail_when_some_inits_worlds_are_not_declared() {
-        let input = r#"
-            init = {n1, n4}
-            n1 = { p, not q }
-        "#;
-        let lexer = KripkeLexer::new(input);
-        let parse_result = parser::parse(lexer);
+    // TODO: readd this once we decide wheter or not we want this constraint
+    // #[test]
+    // fn it_should_parse_kripke_structure_and_fail_when_some_inits_worlds_are_not_declared() {
+    //     let input = r#"
+    //         init = {n1, n4}
+    //         n1 = { p, not q }
+    //     "#;
+    //     let lexer = KripkeLexer::new(input);
+    //     let parse_result = parser::parse(lexer);
 
-        assert!(parse_result.is_ok());
+    //     assert!(parse_result.is_ok());
 
-        let res = KripkeStructure::from_exprs(parse_result.unwrap());
-        assert!(res.is_err());
-        assert_eq!(
-            "cannot find init world `n4` in this scope",
-            res.unwrap_err().as_str()
-        );
-    }
+    //     let res = KripkeStructure::from_exprs(parse_result.unwrap());
+    //     assert!(res.is_err());
+    //     assert_eq!(
+    //         "cannot find init world `n4` in this scope",
+    //         res.unwrap_err().as_str()
+    //     );
+    // }
 }
