@@ -6,6 +6,7 @@ authors = [
     "Oliver Bøving <oliver@bvng.dk>",
 ]
 edition = "2021"
+publish = false
 
 [dependencies]
 ahash = "0.8.11"
