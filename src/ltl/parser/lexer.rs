@@ -62,7 +62,7 @@ pub struct Span {
     pub hi: usize,
 }
 
-impl<'a> Iterator for Lexer<'a> {
+impl Iterator for Lexer<'_> {
     type Item = (Token, Span);
     fn next(&mut self) -> Option<(Token, Span)> {
         loop {

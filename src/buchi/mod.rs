@@ -117,7 +117,7 @@ impl AtomicProperty for Literal {
 impl AtomicProperty for String {
     type Set = BTreeSet<Self>;
 }
-impl<'a> AtomicProperty for &'a str {
+impl AtomicProperty for &str {
     type Set = BTreeSet<Self>;
 }
 
@@ -363,7 +363,11 @@ pub struct GeneralBuchi<S, AP: AtomicProperty> {
 
 impl<S: State, AP: AtomicProperty> BuchiLike<S, AP> for GeneralBuchi<S, AP> {
     type NodeId = BuchiNodeId<S, AP>;
-    type AcceptingState<'a> = &'a NodeSet<BuchiNode<S, AP>> where S: 'a, AP: 'a;
+    type AcceptingState<'a>
+        = &'a NodeSet<BuchiNode<S, AP>>
+    where
+        S: 'a,
+        AP: 'a;
 
     fn nodes(&self) -> impl Iterator<Item = Self::NodeId> + Clone + '_ {
         self.nodes.ids()
@@ -381,7 +385,9 @@ impl<S: State, AP: AtomicProperty> BuchiLike<S, AP> for GeneralBuchi<S, AP> {
     }
 
     fn is_accepting_state(&self, node_id: Self::NodeId) -> bool {
-        self.accepting_states.iter().all(|s| s.contains(node_id))
+        self.accepting_states
+            .iter()
+            .all(|s: &NodeSet<BuchiNode<S, AP>>| s.contains(node_id))
     }
 
     fn adj_labels<'a>(
@@ -489,7 +495,11 @@ pub struct Buchi<S, AP: AtomicProperty> {
 
 impl<S: State, AP: AtomicProperty> BuchiLike<S, AP> for Buchi<S, AP> {
     type NodeId = BuchiNodeId<S, AP>;
-    type AcceptingState<'a> = BuchiNodeId<S, AP> where S: 'a, AP: 'a;
+    type AcceptingState<'a>
+        = BuchiNodeId<S, AP>
+    where
+        S: 'a,
+        AP: 'a;
 
     fn nodes(&self) -> impl Iterator<Item = Self::NodeId> + Clone + '_ {
         self.nodes.ids()
@@ -703,11 +713,14 @@ impl<S, T: State, AP: AtomicProperty> ProductBuchiNodeSet<S, T, AP> {
     }
 }
 
-impl<'s, 't, S: State, T: State, AP: AtomicProperty> BuchiLike<(S, T), AP>
-    for ProductBuchi<'s, 't, S, T, AP>
+impl<S: State, T: State, AP: AtomicProperty> BuchiLike<(S, T), AP>
+    for ProductBuchi<'_, '_, S, T, AP>
 {
     type NodeId = ProductBuchiNodeId<S, T, AP>;
-    type AcceptingState<'a> = ProductBuchiNodeId<S, T, AP> where Self:'a;
+    type AcceptingState<'a>
+        = ProductBuchiNodeId<S, T, AP>
+    where
+        Self: 'a;
 
     fn nodes(&self) -> impl Iterator<Item = Self::NodeId> + Clone + '_ {
         let mut nodes = AHashSet::default();
