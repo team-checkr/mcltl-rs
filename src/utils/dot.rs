@@ -42,8 +42,8 @@ pub struct Dot<'a, S, AP: AtomicProperty, B: BuchiLike<S, AP>>(
     PhantomData<(S, AP)>,
 );
 
-impl<'g, S: State, AP: AtomicProperty + fmt::Display, B: BuchiLike<S, AP>> fmt::Display
-    for Dot<'g, S, AP, B>
+impl<S: State, AP: AtomicProperty + fmt::Display, B: BuchiLike<S, AP>> fmt::Display
+    for Dot<'_, S, AP, B>
 {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let mut buf = Vec::new();
@@ -52,8 +52,8 @@ impl<'g, S: State, AP: AtomicProperty + fmt::Display, B: BuchiLike<S, AP>> fmt::
     }
 }
 
-impl<'a, 'g, S: State, AP: AtomicProperty + fmt::Display, B: BuchiLike<S, AP>>
-    dot::Labeller<'a, Node, Edge<'a, AP>> for Dot<'g, S, AP, B>
+impl<'a, S: State, AP: AtomicProperty + fmt::Display, B: BuchiLike<S, AP>>
+    dot::Labeller<'a, Node, Edge<'a, AP>> for Dot<'_, S, AP, B>
 {
     fn graph_id(&'a self) -> dot::Id<'a> {
         dot::Id::new(self.0).unwrap()
@@ -124,8 +124,8 @@ impl<'a, 'g, S: State, AP: AtomicProperty + fmt::Display, B: BuchiLike<S, AP>>
     }
 }
 
-impl<'a, 'g, S: State, AP: AtomicProperty + fmt::Display, B: BuchiLike<S, AP>>
-    dot::GraphWalk<'a, Node, Edge<'a, AP>> for Dot<'g, S, AP, B>
+impl<'a, S: State, AP: AtomicProperty + fmt::Display, B: BuchiLike<S, AP>>
+    dot::GraphWalk<'a, Node, Edge<'a, AP>> for Dot<'_, S, AP, B>
 {
     fn nodes(&self) -> dot::Nodes<'a, Node> {
         let mut adjs: Vec<Node> = BuchiLike::nodes(self.1)

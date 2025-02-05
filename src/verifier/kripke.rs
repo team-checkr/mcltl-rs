@@ -289,7 +289,7 @@ pub struct Span {
     pub hi: usize,
 }
 
-impl<'a> Iterator for KripkeLexer<'a> {
+impl Iterator for KripkeLexer<'_> {
     type Item = (Token, Span);
     fn next(&mut self) -> Option<(Token, Span)> {
         loop {
@@ -313,7 +313,7 @@ impl<'a> Iterator for KripkeLexer<'a> {
     }
 }
 
-impl<'a> KripkeLexer<'a> {
+impl KripkeLexer<'_> {
     pub fn tokenize(&mut self) -> Vec<(Token, Span)> {
         let mut result = Vec::new();
 

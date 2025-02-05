@@ -8,7 +8,7 @@ pub trait State: Clone + PartialEq + Eq + Hash + fmt::Debug {
     fn name(&self) -> String;
 }
 
-impl<'a> State for &'a str {
+impl State for &str {
     fn initial() -> Self {
         "INIT"
     }
